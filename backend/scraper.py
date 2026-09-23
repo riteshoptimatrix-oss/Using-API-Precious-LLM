@@ -12,60 +12,153 @@ from config import CACHE_FILE, CACHE_TTL, TARGET_SITE
 
 logger = logging.getLogger("scraper")
 
-OFFICIAL_COMPANY_PROFILE = """=== OFFICIAL CONTACT & CONSULTANCY PROFILE ===
-- Organization Name: Precious Education and Immigration Consultant (PEIC)
-- Founded: Established in 2005 (5,000+ successful student & immigration stories, 55+ combined management experience)
-- Corporate Head Office: 503, 5th Floor, Shivalik-9, Near Vasundhara Society, Gulbai Tekra, Ahmedabad-380006, Gujarat, India
-- Official Landline Phone: +91 79 26405855
-- Mobile / WhatsApp Hotline: +91 9879361728
-- WhatsApp Chat Link: https://api.whatsapp.com/send?phone=919879361728
-- Primary Email Address: info@preciousedu.in
-- Official Website URL: https://www.preciousedu.in/
-- Counseling Policy: Free of cost personalized counseling for all candidates & parents
-- Authorized Testing Center: Authorized center to accept registrations for British Council and IDP IELTS examinations
-- Partner Network: Represents over 300+ accredited universities and colleges across Australia, Canada, New Zealand, UK, USA, Singapore, Malaysia, and Ireland
-- Primary Specializations:
-  * Study Abroad & University Admissions
-  * Student Visa & Study Permit Processing (SPP, General, Tier IV, F1/M1)
-  * IELTS Coaching with certified British Council-trained faculties & preparation library
-  * Work Visas (LMIA, PGWP, Open Work Permits, Spousal Work Permits)
-  * Permanent Residency & Migration (Express Entry, Provincial Nominee Programs/PNP/OINP, Atlantic Pilot)
-  * Visitor & Tourist Visas (Single & Multiple Entry)
-  * Super Visa for parents & grandparents
-  * Status Restoration, ATIP notes, TRP, and Procedural Fairness Letters
-  * Comprehensive Pre-Landing and Post-Landing Support
-==============================================="""
+# Comprehensive A-to-Z Knowledge Base directly extracted from https://www.preciousedu.in/
+FULL_WEBSITE_KNOWLEDGE_BASE = """
+================================================================================
+PRECIOUS EDUCATION AND IMMIGRATION CONSULTANT (PEIC) — COMPLETE KNOWLEDGE BASE
+Official Website: https://www.preciousedu.in/
+Tagline: "You Dream it and we Make it" | "One Stop Solution For All Your Study Abroad Needs"
+================================================================================
+
+1. ABOUT US & CREDENTIALS:
+- Established: 2005 (18+ years of dedicated service in overseas education and migration).
+- Track Record: 5,000+ success stories over the past 12+ years.
+- Leadership: Management team holds a cumulative 55+ man-years of experience in international education & immigration.
+- Partner Network: Represents over 300+ accredited universities and colleges across Australia, Canada, New Zealand, UK, USA, Singapore, Malaysia, and Ireland.
+- Counseling Policy: Free of Cost personalized counseling for students, applicants, and parents.
+- Approach: Tailored personalized counseling avoiding an assembly-line method; assessing student background, career goals, and finances.
+- Visa Success Ratio: Exceptionally high visa success ratio driven by deep mastery of admission processes and official visa rules.
+- Global Solutions: Comprehensive education, immigration, and visa solutions under one roof.
+
+2. OFFICIAL CONTACT DETAILS:
+- Corporate Head Office Address: 
+  503, 5th Floor, Shivalik-9, Near Vasundhara Society, Gulbai Tekra, Ahmedabad - 380006, Gujarat, India.
+- Landline Telephone: +91 79 26405855
+- Mobile Helpline & WhatsApp: +91 9879361728
+- Direct WhatsApp Link: https://api.whatsapp.com/send?phone=919879361728
+- Official Email: info@preciousedu.in
+- Website: https://www.preciousedu.in/
+
+3. COMPLETE A-TO-Z SERVICES OFFERED:
+
+A. STUDY VISA SERVICES:
+- Study Permit / Student Visa application & filing
+- Study Permit Extension / Renewal
+- College & University Admissions across 300+ institutions worldwide
+- College Transfer & DLI (Designated Learning Institution) Change
+- Scholarships assistance for meritorious and deserving candidates
+- Pre-Landing & Post-Landing services (accommodation, airport pickup, settlement guidance)
+
+B. IELTS COACHING & TESTING:
+- Official Authorized Center to accept registrations for British Council and IDP IELTS exams
+- Experienced, British Council-trained faculties providing personalized input
+- Tailored coaching with comprehensive preparatory library: study CDs, brochures, video tapes, and mock tests
+- Dedicated individual attention to boost band scores across Listening, Reading, Writing, and Speaking
+
+C. WORK VISA SERVICES:
+- Labor Market Impact Assessment (LMIA)
+- Employer-Specific Work Permits
+- Work Permit Renewals and Extensions
+- Post Graduate Work Permit (PGWP) (applications submitted inside or outside Canada)
+- Open Work Permits under Public Policies
+- Bridging Open Work Permits (BOWP)
+- Off-Campus Work Permits (including Co-Op Work Permits)
+- Spousal Open Work Permits (SOWP)
+- Visitor Visa conversion to Work Permit
+- International Experience Canada (IEC)
+- Legal Status Restoration
+
+D. IMMIGRATION & PERMANENT RESIDENCY (PR) SERVICES:
+- Express Entry (Federal Skilled Worker, Canadian Experience Class, Federal Skilled Trades)
+- Family Sponsorship (Spouse, dependent children, parents)
+- Ontario Immigrant Nominee Program (OINP)
+- Provincial Nominee Programs (PNP) across Canadian provinces
+- Rural Community Immigration Pilot (RCIP)
+- Atlantic Immigration Pilot Program (AIPP)
+- Agri-Food Pilot Program
+- PR Card Renewal applications
+- Canadian Citizenship applications
+- Skilled Migration through CSIC (ICCRC) members
+
+E. VISIT & TEMPORARY RESIDENT VISAS (TRV):
+- Temporary Resident Visa (TRV)
+- Visitor / Tourist Visas (Single Entry and Multiple Entry)
+- Visitor Record Extensions
+- Super Visa (dedicated multi-entry long-term visas for Parents and Grandparents)
+- Travel & Super Visa Medical Insurance
+
+F. VISA INADMISSIBILITY & LEGAL REMEDIES:
+- Temporary Resident Permit (TRP)
+- Procedural Fairness Letters (PFL) drafting and official legal response
+- Addressing Allegations of Misrepresentation
+- Humanitarian and Compassionate (H&C) Considerations for Permanent Residency
+- Medical Inadmissibility remedies
+- Residency Obligation appeals and compliance
+- ATIP Notes (Access to Information and Privacy / GCMS Notes analysis)
+- Amendment of Temporary Resident Documents
+
+4. COUNTRY-SPECIFIC VISA SPECIALIZATIONS:
+
+* CANADA:
+  - Student Visas under SPP & General Category
+  - Dependent Visas (Spouse & Child: Student Dependent, PR Dependent & Citizen Dependent)
+  - Visitor & Business Visas (Single and Multiple Entry)
+  - Skilled Migration & Provincial Nominee Programs (through licensed CSIC members)
+  - PGWP, Spousal Open Work Permits, Super Visa, and Express Entry
+
+* AUSTRALIA:
+  - Student Visa (Subclass 500)
+  - Dependent Visa (Spouse and Child): Student Dependent, PR Dependent, Citizen Dependent
+  - Visitor Visa (Subclass 600) & Business Visas (Single and Multiple Entry)
+  - Work Permits & Skilled Migration (Subclass 189, 190, 491)
+
+* UNITED KINGDOM (UK):
+  - Student Visa (Tier IV / Student Route)
+  - Student Visitor Visa
+  - Dependent Visas (Student Dependent, PR Dependent & Citizen Dependent)
+  - Visitor Visa & Business Visa (Single and Multiple Entry)
+  - Skilled Worker Work Permits (Tier 1 / Skilled Worker)
+
+* UNITED STATES OF AMERICA (USA):
+  - Student Visas (F1 & M1 categories)
+  - Dependent Visas (F2 & M2 for Spouse and Children)
+  - Visitor & Business Visas (B1/B2 Single and Multiple Entry)
+  - Exchange Visitor Work Permits (J1 visa)
+
+* NEW ZEALAND:
+  - Student Visa
+  - Work Permit for Spouse of PR & Citizen Dependent
+  - Visitor Visa for Student Dependent
+  - Business Visa (Single and Multiple Entry)
+
+* SINGAPORE:
+  - Student Visa
+  - Visitor Visa & Business Visa (Single and Multiple Entry)
+  - Work Permits (E-Pass & S-Pass)
+  - Singapore Landed PR
+
+* MALAYSIA & IRELAND:
+  - Comprehensive University Admissions and Student Visa Processing
+
+5. LEAD CAPTURE & WHATSAPP INTEGRATION:
+- Website visitors can submit details via "Request a call back".
+- WhatsApp Hotline (+91 9879361728) is actively used for rapid consultation.
+- Visitors are always encouraged to share their phone number, email, and preferred country/course in the chat.
+================================================================================
+"""
 
 
 def html_to_clean_text(html_content: str) -> str:
-    """Strips scripts, styles, and tags while preserving critical footer/contact text."""
+    """Strips scripts, styles, and tags while preserving all readable content."""
     if not html_content:
         return ""
     try:
         soup = BeautifulSoup(html_content, "html.parser")
-        # Extract telephone and mailto links before removing tags
-        extracted_contacts = []
-        for a in soup.find_all("a", href=True):
-            href = a["href"]
-            if href.startswith("mailto:"):
-                extracted_contacts.append(f"Email: {href.replace('mailto:', '').strip()}")
-            elif href.startswith("tel:"):
-                extracted_contacts.append(f"Phone: {href.replace('tel:', '').strip()}")
-            elif "whatsapp.com/send" in href:
-                phone_match = re.search(r"phone=([0-9]+)", href)
-                if phone_match:
-                    extracted_contacts.append(f"WhatsApp: +{phone_match.group(1)}")
-
-        # Only decompose non-text elements (preserve footer & header!)
         for tag in soup(["script", "style", "noscript", "svg", "iframe"]):
             tag.decompose()
 
         text = soup.get_text(separator=" ", strip=True)
         text = html.unescape(text)
-
-        if extracted_contacts:
-            text += "\n\nExtracted Contact Links:\n" + "\n".join(set(extracted_contacts))
-
         text = re.sub(r"[ \t]+", " ", text)
         text = re.sub(r"\n\s*\n+", "\n", text)
         return text.strip()
@@ -119,40 +212,37 @@ def write_cache(content: str) -> None:
 
 async def get_site_context() -> str:
     """
-    Returns complete website knowledge base context. Uses cache if valid,
-    otherwise scrapes the website and bundles with official company profile.
+    Returns complete A-to-Z website knowledge base context. Uses cache if valid,
+    otherwise bundles the authoritative knowledge base with live-scraped text.
     """
     cached = read_cache()
     if cached:
         return cached
 
     base_url = TARGET_SITE.rstrip("/")
-    # Fetch primary site and known pages
     pages_to_try = [
         TARGET_SITE,
-        f"{base_url}/about-us",
-        f"{base_url}/contact-us",
-        f"{base_url}/services",
-        f"{base_url}/privacy-policy.html",
         f"{base_url}/terms-conditions.html",
+        f"{base_url}/privacy-policy.html",
     ]
 
     scraped_content = ""
-    async with httpx.AsyncClient(verify=False) as client:
-        tasks = [fetch_url(client, url) for url in pages_to_try]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+    try:
+        async with httpx.AsyncClient(verify=False) as client:
+            tasks = [fetch_url(client, url) for url in pages_to_try]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        for url, res in zip(pages_to_try, results):
-            if isinstance(res, str) and res.strip():
-                clean = html_to_clean_text(res)
-                if clean:
-                    scraped_content += f"\n\n--- PAGE: {url} ---\n{clean}"
-            if len(scraped_content) > 14000:
-                break
+            for url, res in zip(pages_to_try, results):
+                if isinstance(res, str) and res.strip():
+                    clean = html_to_clean_text(res)
+                    if clean:
+                        scraped_content += f"\n\n--- LIVE PAGE: {url} ---\n{clean}"
+    except Exception as e:
+        logger.warning(f"Live scrape error: {e}")
 
-    # Combine the authoritative structured company profile with live-scraped text
-    combined_text = f"{OFFICIAL_COMPANY_PROFILE}\n\n=== LIVE WEBSITE CONTENT ===\n{scraped_content.strip()}"
-    combined_text = combined_text[:18000]
+    # Combine the complete authoritative encyclopedia with live website content
+    combined_text = f"{FULL_WEBSITE_KNOWLEDGE_BASE}\n\n=== LIVE ACCREDITED CONTENT ===\n{scraped_content.strip()}"
+    combined_text = combined_text[:20000]
 
     write_cache(combined_text)
     return combined_text
