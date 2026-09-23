@@ -72,21 +72,27 @@ app.add_middleware(
 )
 
 
-# --- Request & Response Models ---
+# --- Request & Response Models (WABA & Web Compatible) ---
 class ChatHistoryItem(BaseModel):
     role: str = Field(description="Role: 'user' or 'bot'/'model'")
     text: str = Field(description="Turn message text")
 
 
 class ChatRequest(BaseModel):
-    message: str = Field(..., description="Current user message")
+    message: Optional[str] = Field(default="", description="Current user message")
+    query: Optional[str] = Field(default="", description="Alternative alias for message")
+    text: Optional[str] = Field(default="", description="Alternative alias for message")
     history: Optional[List[ChatHistoryItem]] = Field(default_factory=list, description="Past chat conversation turns")
-    session_id: Optional[str] = Field(default="", description="Unique session identifier")
+    session_id: Optional[str] = Field(default="", description="Unique session identifier or WhatsApp phone number")
 
 
 class ChatResponse(BaseModel):
     reply: str
+    response: Optional[str] = None
+    message: Optional[str] = None
+    output: Optional[str] = None
     session_id: str
+    status: Optional[str] = "success"
 
 
 # WhatsApp lead inquiry shortcut patterns (matches original index.php logic)
@@ -110,42 +116,38 @@ async def health_check():
     }
 
 
+# Dual routing: supports both /api/chat and /predict (for WABA / BotPenguin flow)
 @app.post("/api/chat", response_model=ChatResponse)
+@app.post("/predict", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     """
-    Main chat endpoint. Accepts the user's message and past history,
-    injects cached website context, and queries Gemini with automated key rotation.
+    Main chat endpoint. Compatible with both Web Frontend and WABA chatbot builders.
+    Accepts message, query, or text, with fallback response keys (reply, response, output).
     """
-    user_message = request.message.strip()
+    # Accept message from message, query, or text
+    raw_msg = request.message or request.query or request.text or ""
+    user_message = raw_msg.strip()
     session_id = request.session_id.strip() if request.session_id else f"sess_{uuid.uuid4().hex[:16]}"
 
     if not user_message:
-        return ChatResponse(
-            reply="Please type a message so I can help you.",
-            session_id=session_id
-        )
+        text = "Please type a message so I can help you."
+        return ChatResponse(reply=text, response=text, message=text, output=text, session_id=session_id)
 
     # Security check: message length limit
     if len(user_message) > MAX_MESSAGE_LENGTH:
-        return ChatResponse(
-            reply=f"Your message is too long (maximum {MAX_MESSAGE_LENGTH} characters allowed). Please shorten your question.",
-            session_id=session_id
-        )
+        text = f"Your message is too long (maximum {MAX_MESSAGE_LENGTH} characters allowed). Please shorten your question."
+        return ChatResponse(reply=text, response=text, message=text, output=text, session_id=session_id)
 
     if not GEMINI_API_KEYS:
-        return ChatResponse(
-            reply="Server configuration error: No Gemini API keys are configured on the backend.",
-            session_id=session_id
-        )
+        text = "Server configuration error: No Gemini API keys are configured on the backend."
+        return ChatResponse(reply=text, response=text, message=text, output=text, session_id=session_id, status="error")
 
     # Fast pattern match for lead collection
     user_msg_lower = user_message.lower()
     for pattern in SHARE_DETAILS_PATTERNS:
         if pattern in user_msg_lower:
-            return ChatResponse(
-                reply="Yes, you can share your details here.",
-                session_id=session_id
-            )
+            text = "Yes, you can share your details here."
+            return ChatResponse(reply=text, response=text, message=text, output=text, session_id=session_id)
 
     try:
         # Retrieve scraped & cached website content + real-time on-demand live lookup
@@ -162,7 +164,14 @@ async def chat_endpoint(request: ChatRequest):
             history=history_dicts
         )
 
-        return ChatResponse(reply=reply, session_id=session_id)
+        return ChatResponse(
+            reply=reply,
+            response=reply,
+            message=reply,
+            output=reply,
+            session_id=session_id,
+            status="success"
+        )
 
     except Exception as e:
         logger.error(f"Error processing chat request: {e}", exc_info=True)
@@ -171,9 +180,14 @@ async def chat_endpoint(request: ChatRequest):
         for k in GEMINI_API_KEYS:
             if k in safe_err:
                 safe_err = safe_err.replace(k, "[REDACTED_KEY]")
+        err_reply = f"Sorry, something went wrong while generating a response. ({safe_err})"
         return ChatResponse(
-            reply=f"Sorry, something went wrong while generating a response. ({safe_err})",
-            session_id=session_id
+            reply=err_reply,
+            response=err_reply,
+            message=err_reply,
+            output=err_reply,
+            session_id=session_id,
+            status="error"
         )
 
 
