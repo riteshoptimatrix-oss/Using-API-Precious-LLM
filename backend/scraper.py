@@ -25,7 +25,7 @@ Tagline: "You Dream it and we Make it" | "One Stop Solution For All Your Study A
 - Track Record: 5,000+ success stories over the past 12+ years.
 - Leadership: Management team holds a cumulative 55+ man-years of experience in international education & immigration.
 - Partner Network: Represents over 300+ accredited universities and colleges across Australia, Canada, New Zealand, UK, USA, Singapore, Malaysia, and Ireland.
-- Counseling Policy: 100% Free of Cost personalized counseling for students, applicants, and parents.
+- Counseling Policy: Free of Cost personalized counseling for students, applicants, and parents.
 - Approach: Tailored personalized counseling avoiding an assembly-line method; assessing student background, career goals, and finances.
 - Visa Success Ratio: Exceptionally high visa success ratio driven by deep mastery of admission processes and official visa rules.
 - Global Solutions: Comprehensive education, immigration, and visa solutions under one roof.
