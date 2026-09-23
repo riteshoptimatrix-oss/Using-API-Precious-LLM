@@ -25,7 +25,7 @@ Tagline: "You Dream it and we Make it" | "One Stop Solution For All Your Study A
 - Track Record: 5,000+ success stories over the past 12+ years.
 - Leadership: Management team holds a cumulative 55+ man-years of experience in international education & immigration.
 - Partner Network: Represents over 300+ accredited universities and colleges across Australia, Canada, New Zealand, UK, USA, Singapore, Malaysia, and Ireland.
-- Counseling Policy: Free of Cost personalized counseling for students, applicants, and parents.
+- Counseling Policy: 100% Free of Cost personalized counseling for students, applicants, and parents.
 - Approach: Tailored personalized counseling avoiding an assembly-line method; assessing student background, career goals, and finances.
 - Visa Success Ratio: Exceptionally high visa success ratio driven by deep mastery of admission processes and official visa rules.
 - Global Solutions: Comprehensive education, immigration, and visa solutions under one roof.
@@ -173,7 +173,7 @@ def html_to_clean_text(html_content: str) -> str:
         return clean.strip()
 
 
-async def fetch_url(client: httpx.AsyncClient, url: str, timeout: float = 6.0) -> Optional[str]:
+async def fetch_url(client: httpx.AsyncClient, url: str, timeout: float = 5.0) -> Optional[str]:
     """Fetches a single URL with error handling and timeout."""
     try:
         headers = {"User-Agent": "Mozilla/5.0 (compatible; PreciousEduBot/1.0)"}
@@ -184,6 +184,58 @@ async def fetch_url(client: httpx.AsyncClient, url: str, timeout: float = 6.0) -
     except Exception as e:
         logger.debug(f"Failed to fetch {url}: {e}")
         return None
+
+
+async def live_search_website(user_query: str) -> str:
+    """
+    Real-time dynamic scraping:
+    When a user asks a question, this function performs an on-the-fly live fetch
+    of https://www.preciousedu.in/ to extract exact matching text, paragraphs,
+    contact info, or links in real-time.
+    """
+    if not user_query or len(user_query.strip()) < 3:
+        return ""
+
+    query_tokens = [w.lower() for w in re.findall(r"\w+", user_query) if len(w) > 3]
+    if not query_tokens:
+        query_tokens = [w.lower() for w in re.findall(r"\w+", user_query)]
+
+    try:
+        async with httpx.AsyncClient(timeout=4.0, verify=False) as client:
+            html_text = await fetch_url(client, TARGET_SITE)
+            if not html_text:
+                return ""
+
+            soup = BeautifulSoup(html_text, "html.parser")
+            for tag in soup(["script", "style", "noscript", "svg", "iframe"]):
+                tag.decompose()
+
+            # Find matching sections or paragraphs
+            matching_blocks = []
+            for element in soup.find_all(["p", "li", "h1", "h2", "h3", "h4", "div", "footer"]):
+                elem_text = element.get_text(separator=" ", strip=True)
+                if not elem_text or len(elem_text) < 15:
+                    continue
+                elem_lower = elem_text.lower()
+                # Check for token match
+                if any(token in elem_lower for token in query_tokens):
+                    clean_block = re.sub(r"\s+", " ", elem_text).strip()
+                    if clean_block not in matching_blocks:
+                        matching_blocks.append(clean_block)
+                if len(matching_blocks) >= 6:
+                    break
+
+            if matching_blocks:
+                return (
+                    f"=== REAL-TIME LIVE SITE SCRAPING (ACCESSED JUST NOW) ===\n"
+                    f"User Query Focus: {user_query}\n"
+                    + "\n- ".join(matching_blocks)
+                    + "\n========================================================"
+                )
+    except Exception as e:
+        logger.debug(f"Real-time site lookup failed: {e}")
+
+    return ""
 
 
 def read_cache() -> Optional[str]:
@@ -210,39 +262,43 @@ def write_cache(content: str) -> None:
         logger.warning(f"Failed to write cache file: {e}")
 
 
-async def get_site_context() -> str:
+async def get_site_context(user_query: str = "") -> str:
     """
-    Returns complete A-to-Z website knowledge base context. Uses cache if valid,
-    otherwise bundles the authoritative knowledge base with live-scraped text.
+    Returns complete website knowledge base context.
+    Combines the core encyclopedia with real-time live search tailored to the user's question.
     """
-    cached = read_cache()
-    if cached:
-        return cached
+    base_context = read_cache()
 
-    base_url = TARGET_SITE.rstrip("/")
-    pages_to_try = [
-        TARGET_SITE,
-        f"{base_url}/terms-conditions.html",
-        f"{base_url}/privacy-policy.html",
-    ]
+    if not base_context:
+        base_url = TARGET_SITE.rstrip("/")
+        pages_to_try = [
+            TARGET_SITE,
+            f"{base_url}/terms-conditions.html",
+            f"{base_url}/privacy-policy.html",
+        ]
 
-    scraped_content = ""
-    try:
-        async with httpx.AsyncClient(verify=False) as client:
-            tasks = [fetch_url(client, url) for url in pages_to_try]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+        scraped_content = ""
+        try:
+            async with httpx.AsyncClient(verify=False) as client:
+                tasks = [fetch_url(client, url) for url in pages_to_try]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            for url, res in zip(pages_to_try, results):
-                if isinstance(res, str) and res.strip():
-                    clean = html_to_clean_text(res)
-                    if clean:
-                        scraped_content += f"\n\n--- LIVE PAGE: {url} ---\n{clean}"
-    except Exception as e:
-        logger.warning(f"Live scrape error: {e}")
+                for url, res in zip(pages_to_try, results):
+                    if isinstance(res, str) and res.strip():
+                        clean = html_to_clean_text(res)
+                        if clean:
+                            scraped_content += f"\n\n--- LIVE PAGE: {url} ---\n{clean}"
+        except Exception as e:
+            logger.warning(f"Live scrape error: {e}")
 
-    # Combine the complete authoritative encyclopedia with live website content
-    combined_text = f"{FULL_WEBSITE_KNOWLEDGE_BASE}\n\n=== LIVE ACCREDITED CONTENT ===\n{scraped_content.strip()}"
-    combined_text = combined_text[:20000]
+        base_context = f"{FULL_WEBSITE_KNOWLEDGE_BASE}\n\n=== LIVE SITE CONTENT ===\n{scraped_content.strip()}"
+        base_context = base_context[:18000]
+        write_cache(base_context)
 
-    write_cache(combined_text)
-    return combined_text
+    # If the user asked a specific query, perform on-the-fly real-time scrape
+    if user_query:
+        live_realtime_matches = await live_search_website(user_query)
+        if live_realtime_matches:
+            return f"{live_realtime_matches}\n\n{base_context}"
+
+    return base_context

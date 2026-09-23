@@ -148,8 +148,8 @@ async def chat_endpoint(request: ChatRequest):
             )
 
     try:
-        # Retrieve scraped & cached website content
-        site_context = await get_site_context()
+        # Retrieve scraped & cached website content + real-time on-demand live lookup
+        site_context = await get_site_context(user_message)
 
         # Enforce history turn limit to prevent token budget exploitation
         trimmed_history = request.history[-MAX_HISTORY_TURNS:] if request.history else []
