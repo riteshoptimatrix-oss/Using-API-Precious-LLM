@@ -1,0 +1,83 @@
+# =====================================================================
+# Git Ignore Configuration for PreciousEdu Full-Stack Chatbot
+# =====================================================================
+
+# ----------------- Environment Variables & Secrets -----------------
+# NEVER commit environment files containing API keys to source control!
+.env
+.env.*
+*.env
+*.env.local
+*.env.production
+*.env.development
+backend/.env
+backend/.env.*
+!.env.example
+!backend/.env.example
+
+# ----------------- Python Artifacts & Caching -----------------
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ----------------- Logs & Databases -----------------
+*.log
+**/*.log
+*.sqlite
+*.sqlite3
+*.db
+
+# ----------------- Scraper & Runtime Cache Files -----------------
+backend/site_cache.json
+site_cache.json
+**/*site_cache.json
+*.cache
+
+# ----------------- IDE, Editor & OS Files -----------------
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# ----------------- Temporary & Testing -----------------
+tmp/
+temp/
+.pytest_cache/
+.coverage
+htmlcov/
