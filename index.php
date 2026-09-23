@@ -7,7 +7,7 @@
  * Example: 'https://precious-edu-chatbot-api.onrender.com'
  * (Leave as is for local development; it will automatically fallback to http://localhost:8000)
  */
-$RENDER_BACKEND_URL = 'https://YOUR-APP-NAME.onrender.com';
+$RENDER_BACKEND_URL = 'https://using-api-precious-llm.onrender.com';
 ?>
 <!DOCTYPE html>
 <html lang="en">
