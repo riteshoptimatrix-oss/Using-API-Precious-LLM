@@ -91,8 +91,17 @@ class ChatRequest(BaseModel):
     message: Optional[str] = Field(default="", description="Current user message")
     query: Optional[str] = Field(default="", description="Alternative alias for message")
     text: Optional[str] = Field(default="", description="Alternative alias for message")
+    body: Optional[str] = Field(default="", description="Alternative alias for message")
+    keywords: Optional[str] = Field(default="", description="Alternative alias for message")
+    keyword: Optional[str] = Field(default="", description="Alternative alias for message")
+    question: Optional[str] = Field(default="", description="Alternative alias for message")
+    prompt: Optional[str] = Field(default="", description="Alternative alias for message")
+    content: Optional[str] = Field(default="", description="Alternative alias for message")
     history: Optional[List[ChatHistoryItem]] = Field(default_factory=list, description="Past chat conversation turns")
     session_id: Optional[str] = Field(default="", description="Unique session identifier or WhatsApp phone number")
+
+    class Config:
+        extra = "allow"
 
 
 class ChatResponse(BaseModel):
@@ -135,8 +144,19 @@ async def chat_endpoint(request: ChatRequest):
     Main chat endpoint. Compatible with both Web Frontend and WABA chatbot builders.
     Accepts message, query, or text, with fallback response keys (reply, response, output).
     """
-    # Accept message from message, query, or text
-    raw_msg = request.message or request.query or request.text or ""
+    # Accept message from message, query, text, body, question, prompt, keywords, etc.
+    raw_msg = (
+        request.message
+        or request.query
+        or request.text
+        or request.body
+        or request.question
+        or request.prompt
+        or request.content
+        or request.keywords
+        or request.keyword
+        or ""
+    )
     user_message = raw_msg.strip()
     session_id = request.session_id.strip() if request.session_id else f"sess_{uuid.uuid4().hex[:16]}"
 
