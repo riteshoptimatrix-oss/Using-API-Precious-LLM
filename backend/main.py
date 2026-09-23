@@ -51,9 +51,18 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# --- Security Headers Middleware ---
+# --- Security & Flexible Webhook Middleware ---
 @app.middleware("http")
-async def add_security_headers(request: Request, call_next):
+async def security_and_webhook_middleware(request: Request, call_next):
+    # If WABA / Flow Builder sends POST to /predict or /api/chat without explicit application/json header, auto-adapt it
+    if request.method == "POST" and any(request.url.path.rstrip("/").endswith(p) for p in ["/predict", "/api/chat"]):
+        ct = request.headers.get("content-type", "")
+        if not ct or "json" not in ct.lower():
+            # Update scope headers so FastAPI/Starlette parses body as JSON
+            headers = list(request.scope.get("headers", []))
+            headers.append((b"content-type", b"application/json"))
+            request.scope["headers"] = headers
+
     response: Response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
