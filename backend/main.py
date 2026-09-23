@@ -100,8 +100,10 @@ class ChatResponse(BaseModel):
     response: Optional[str] = None
     message: Optional[str] = None
     output: Optional[str] = None
+    answer: Optional[str] = None
     session_id: str
     status: Optional[str] = "success"
+
 
 
 # WhatsApp lead inquiry shortcut patterns (matches original index.php logic)
@@ -140,23 +142,23 @@ async def chat_endpoint(request: ChatRequest):
 
     if not user_message:
         text = "Please type a message so I can help you."
-        return ChatResponse(reply=text, response=text, message=text, output=text, session_id=session_id)
+        return ChatResponse(reply=text, response=text, message=text, output=text, answer=text, session_id=session_id)
 
     # Security check: message length limit
     if len(user_message) > MAX_MESSAGE_LENGTH:
         text = f"Your message is too long (maximum {MAX_MESSAGE_LENGTH} characters allowed). Please shorten your question."
-        return ChatResponse(reply=text, response=text, message=text, output=text, session_id=session_id)
+        return ChatResponse(reply=text, response=text, message=text, output=text, answer=text, session_id=session_id)
 
     if not GEMINI_API_KEYS:
         text = "Server configuration error: No Gemini API keys are configured on the backend."
-        return ChatResponse(reply=text, response=text, message=text, output=text, session_id=session_id, status="error")
+        return ChatResponse(reply=text, response=text, message=text, output=text, answer=text, session_id=session_id, status="error")
 
     # Fast pattern match for lead collection
     user_msg_lower = user_message.lower()
     for pattern in SHARE_DETAILS_PATTERNS:
         if pattern in user_msg_lower:
             text = "Yes, you can share your details here."
-            return ChatResponse(reply=text, response=text, message=text, output=text, session_id=session_id)
+            return ChatResponse(reply=text, response=text, message=text, output=text, answer=text, session_id=session_id)
 
     try:
         # Retrieve scraped & cached website content + real-time on-demand live lookup
@@ -178,6 +180,7 @@ async def chat_endpoint(request: ChatRequest):
             response=reply,
             message=reply,
             output=reply,
+            answer=reply,
             session_id=session_id,
             status="success"
         )
@@ -195,6 +198,7 @@ async def chat_endpoint(request: ChatRequest):
             response=err_reply,
             message=err_reply,
             output=err_reply,
+            answer=err_reply,
             session_id=session_id,
             status="error"
         )
