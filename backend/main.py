@@ -1,3 +1,4 @@
+import json
 import logging
 import uuid
 from contextlib import asynccontextmanager
@@ -163,6 +164,16 @@ async def chat_endpoint(request: ChatRequest, raw_req: Request):
         raw_dict.get("content"), raw_dict.get("keywords"), raw_dict.get("keyword"),
         raw_dict.get("input"), raw_dict.get("user_message")
     ]
+
+    # Include any extra arbitrary fields parsed by Pydantic
+    if hasattr(request, "__pydantic_extra__") and request.__pydantic_extra__:
+        for extra_k, extra_v in request.__pydantic_extra__.items():
+            if isinstance(extra_v, str):
+                possible_values.append(extra_v)
+            elif isinstance(extra_v, dict):
+                for sub_v in extra_v.values():
+                    if isinstance(sub_v, str):
+                        possible_values.append(sub_v)
 
     # Check nested dicts (e.g. if start_node or start_nodeObject is passed)
     for k, v in raw_dict.items():
