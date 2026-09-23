@@ -286,14 +286,12 @@ async def chat_endpoint(request: ChatRequest, raw_req: Request):
     for pattern in SHARE_DETAILS_PATTERNS:
         if pattern in user_msg_lower:
             text = format_whatsapp_text(
-                "Yes, absolutely! You can safely share your details right here.\n\n"
-                "To help us provide you with the best guidance and a 100% free profile assessment, please share:\n"
-                "- *Your Name & Contact / WhatsApp Number*\n"
-                "- *Current Qualification & Status* (What you are currently doing / highest education)\n"
-                "- *Preferred Country* (Canada, UK, Australia, USA, New Zealand, Europe, etc.)\n"
-                "- *Desired Course or Visa Type* (Study Visa, Visitor Visa, etc.)\n"
-                "- *IELTS / PTE Status* (Band/score if taken, or if planning)\n\n"
-                "Our senior counselors at Precious Education will review your details and contact you for a personalized consultation!"
+                "Yes, absolutely! You can share your details right here.\n\n"
+                "Please let us know:\n"
+                "- *Name & Contact Number*\n"
+                "- *Highest Qualification & Target Country*\n"
+                "- *IELTS / PTE Score* (if taken)\n\n"
+                "Our senior counselor will get in touch with you shortly for a 100% free profile evaluation!"
             )
             save_session_history(session_id, user_message, text)
             return ChatResponse(reply=text, response=text, message=text, output=text, answer=text, text=text, data=text, session_id=session_id)
