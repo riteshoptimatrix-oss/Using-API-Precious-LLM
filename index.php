@@ -368,8 +368,14 @@ function formatChatContent(rawText) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-  // 2. Bold text **text** -> <strong>text</strong>
+  // 2. Handle markdown links [label](url) if present
+  safe = safe.replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g, (match, label, url) => {
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link">${label === url ? url : label}</a>`;
+  });
+
+  // 2b. Bold text: support both **text** and WhatsApp single asterisk *text*
   safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  safe = safe.replace(/(^|[^\*])\*([^\*\n\s][^\*\n]*?[^\*\n\s]|[^\*\n\s])\*([^\*]|$)/g, '$1<strong>$2</strong>$3');
 
   // 3. Process lists and paragraphs
   const lines = safe.split('\n');

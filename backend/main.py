@@ -1,8 +1,9 @@
 import json
 import logging
+import time
 import uuid
 from contextlib import asynccontextmanager
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,7 +20,7 @@ from config import (
     TARGET_SITE,
     mask_key,
 )
-from gemini_service import ask_gemini
+from gemini_service import ask_gemini, format_whatsapp_text
 from scraper import get_site_context
 
 # Configure structured logging
@@ -55,8 +56,8 @@ app = FastAPI(
 # --- Security & Flexible Webhook Middleware ---
 @app.middleware("http")
 async def security_and_webhook_middleware(request: Request, call_next):
-    # If WABA / Flow Builder sends POST to /predict or /api/chat without explicit application/json header, auto-adapt it
-    if request.method == "POST" and any(request.url.path.rstrip("/").endswith(p) for p in ["/predict", "/api/chat"]):
+    # If WABA / Flow Builder sends POST to /predict, /api/predict, or /api/chat without explicit application/json header, auto-adapt it
+    if request.method == "POST" and any(request.url.path.rstrip("/").endswith(p) for p in ["/predict", "/api/chat", "/api/predict"]):
         ct = request.headers.get("content-type", "")
         if not ct or "json" not in ct.lower():
             # Update scope headers so FastAPI/Starlette parses body as JSON
@@ -111,9 +112,53 @@ class ChatResponse(BaseModel):
     message: Optional[str] = None
     output: Optional[str] = None
     answer: Optional[str] = None
+    text: Optional[str] = None
+    data: Optional[str] = None
     session_id: str
     status: Optional[str] = "success"
 
+
+
+# Server-side conversation memory for WhatsApp/WABA webhooks (keyed by phone number / session_id)
+SESSION_MEMORY: Dict[str, List[Dict[str, str]]] = {}
+SESSION_TIMESTAMP: Dict[str, float] = {}
+SESSION_TTL_SECONDS = 86400  # 24 hours
+
+
+def get_session_history(session_id: str, client_history: Optional[List[ChatHistoryItem]]) -> List[Dict[str, str]]:
+    """
+    Returns appropriate conversation history:
+    - If client explicitly provides history (e.g. Web UI), use client history.
+    - If client sends empty history (e.g. WhatsApp webhook), use server-side SESSION_MEMORY for this session_id.
+    """
+    if client_history and len(client_history) > 0:
+        return [{"role": item.role, "text": item.text} for item in client_history[-MAX_HISTORY_TURNS:]]
+
+    if not session_id:
+        return []
+
+    # Clean up stale sessions (> 24 hours) periodically
+    now = time.time()
+    if len(SESSION_MEMORY) > 500:
+        stale_keys = [k for k, last_t in SESSION_TIMESTAMP.items() if (now - last_t) > SESSION_TTL_SECONDS]
+        for k in stale_keys:
+            SESSION_MEMORY.pop(k, None)
+            SESSION_TIMESTAMP.pop(k, None)
+
+    return list(SESSION_MEMORY.get(session_id, []))[-MAX_HISTORY_TURNS:]
+
+
+def save_session_history(session_id: str, user_text: str, bot_text: str) -> None:
+    """Records conversation turn in server memory so WhatsApp users experience full conversational continuity."""
+    if not session_id:
+        return
+    if session_id not in SESSION_MEMORY:
+        SESSION_MEMORY[session_id] = []
+    SESSION_MEMORY[session_id].append({"role": "user", "text": user_text})
+    SESSION_MEMORY[session_id].append({"role": "bot", "text": bot_text})
+    # Keep last 20 messages (10 conversation turns)
+    SESSION_MEMORY[session_id] = SESSION_MEMORY[session_id][-20:]
+    SESSION_TIMESTAMP[session_id] = time.time()
 
 
 # WhatsApp lead inquiry shortcut patterns (matches original index.php logic)
@@ -139,6 +184,7 @@ async def health_check():
 
 @app.post("/api/chat", response_model=ChatResponse)
 @app.post("/predict", response_model=ChatResponse)
+@app.post("/api/predict", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest, raw_req: Request):
     """
     Main chat endpoint. Compatible with both Web Frontend and WABA chatbot builders.
@@ -197,38 +243,67 @@ async def chat_endpoint(request: ChatRequest, raw_req: Request):
             if val and isinstance(val, str) and val.strip().startswith("{{"):
                 logger.warning(f"Unresolved template tag detected in request: {val}")
 
-    session_id = request.session_id.strip() if request.session_id else f"sess_{uuid.uuid4().hex[:16]}"
-    if not session_id or (session_id.startswith("{{") and session_id.endswith("}}")):
-        session_id = str(raw_dict.get("session_id") or raw_dict.get("receiver_number") or f"sess_{uuid.uuid4().hex[:16]}")
+    # WABA session & phone identification: check all common WhatsApp builder parameter names
+    possible_sessions = [
+        request.session_id,
+        raw_dict.get("session_id"),
+        raw_dict.get("wa_id"),
+        raw_dict.get("phone"),
+        raw_dict.get("mobile"),
+        raw_dict.get("sender"),
+        raw_dict.get("from"),
+        raw_dict.get("receiver_number"),
+        raw_dict.get("phone_number"),
+        raw_dict.get("contact"),
+        raw_dict.get("user_id"),
+    ]
+    session_id = ""
+    for s in possible_sessions:
+        if s and isinstance(s, str):
+            clean_s = s.strip()
+            if clean_s and not (clean_s.startswith("{{") and clean_s.endswith("}}")):
+                session_id = clean_s
+                break
+    if not session_id:
+        session_id = f"sess_{uuid.uuid4().hex[:16]}"
 
     if not user_message:
         logger.info(f"Empty user_message received. Returning prompt to type a message. Raw payload: {raw_dict}")
         text = "Please type a message so I can help you."
-        return ChatResponse(reply=text, response=text, message=text, output=text, answer=text, session_id=session_id)
+        return ChatResponse(reply=text, response=text, message=text, output=text, answer=text, text=text, data=text, session_id=session_id)
 
     # Security check: message length limit
     if len(user_message) > MAX_MESSAGE_LENGTH:
         text = f"Your message is too long (maximum {MAX_MESSAGE_LENGTH} characters allowed). Please shorten your question."
-        return ChatResponse(reply=text, response=text, message=text, output=text, answer=text, session_id=session_id)
+        return ChatResponse(reply=text, response=text, message=text, output=text, answer=text, text=text, data=text, session_id=session_id)
 
     if not GEMINI_API_KEYS:
         text = "Server configuration error: No Gemini API keys are configured on the backend."
-        return ChatResponse(reply=text, response=text, message=text, output=text, answer=text, session_id=session_id, status="error")
+        return ChatResponse(reply=text, response=text, message=text, output=text, answer=text, text=text, data=text, session_id=session_id, status="error")
 
     # Fast pattern match for lead collection
     user_msg_lower = user_message.lower()
     for pattern in SHARE_DETAILS_PATTERNS:
         if pattern in user_msg_lower:
-            text = "Yes, you can share your details here."
-            return ChatResponse(reply=text, response=text, message=text, output=text, answer=text, session_id=session_id)
+            text = format_whatsapp_text(
+                "Yes, absolutely! You can safely share your details right here.\n\n"
+                "To help us provide you with the best guidance and a 100% free profile assessment, please share:\n"
+                "- *Your Name & Contact / WhatsApp Number*\n"
+                "- *Current Qualification & Status* (What you are currently doing / highest education)\n"
+                "- *Preferred Country* (Canada, UK, Australia, USA, New Zealand, Europe, etc.)\n"
+                "- *Desired Course or Visa Type* (Study Visa, Visitor Visa, etc.)\n"
+                "- *IELTS / PTE Status* (Band/score if taken, or if planning)\n\n"
+                "Our senior counselors at Precious Education will review your details and contact you for a personalized consultation!"
+            )
+            save_session_history(session_id, user_message, text)
+            return ChatResponse(reply=text, response=text, message=text, output=text, answer=text, text=text, data=text, session_id=session_id)
 
     try:
-        # Retrieve scraped & cached website content + real-time on-demand live lookup
+        # Retrieve scraped & cached website content instantly without blocking network requests
         site_context = await get_site_context(user_message)
 
-        # Enforce history turn limit to prevent token budget exploitation
-        trimmed_history = request.history[-MAX_HISTORY_TURNS:] if request.history else []
-        history_dicts = [{"role": item.role, "text": item.text} for item in trimmed_history]
+        # Retrieve conversation history (seamlessly supports WhatsApp webhooks using session_id)
+        history_dicts = get_session_history(session_id, request.history)
 
         # Call Gemini with fallback key rotation
         reply = await ask_gemini(
@@ -237,12 +312,17 @@ async def chat_endpoint(request: ChatRequest, raw_req: Request):
             history=history_dicts
         )
 
+        # Save conversation turn in server-side session memory for future turns
+        save_session_history(session_id, user_message, reply)
+
         return ChatResponse(
             reply=reply,
             response=reply,
             message=reply,
             output=reply,
             answer=reply,
+            text=reply,
+            data=reply,
             session_id=session_id,
             status="success"
         )
@@ -261,6 +341,8 @@ async def chat_endpoint(request: ChatRequest, raw_req: Request):
             message=err_reply,
             output=err_reply,
             answer=err_reply,
+            text=err_reply,
+            data=err_reply,
             session_id=session_id,
             status="error"
         )

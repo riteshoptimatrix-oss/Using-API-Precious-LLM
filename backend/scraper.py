@@ -249,7 +249,12 @@ def read_cache() -> Optional[str]:
             if (time.time() - cached_time) < CACHE_TTL and content:
                 return content
         except Exception as e:
-            logger.warning(f"Failed to read cache file: {e}")
+            logger.warning(f"Failed to read cache file: {e}. Reinitializing cache...")
+            try:
+                write_cache(FULL_WEBSITE_KNOWLEDGE_BASE.strip())
+                return FULL_WEBSITE_KNOWLEDGE_BASE.strip()
+            except Exception:
+                pass
     return None
 
 
@@ -265,40 +270,12 @@ def write_cache(content: str) -> None:
 async def get_site_context(user_query: str = "") -> str:
     """
     Returns complete website knowledge base context.
-    Combines the core encyclopedia with real-time live search tailored to the user's question.
+    Uses cached knowledge base instantly without unnecessary network overhead.
     """
     base_context = read_cache()
 
     if not base_context:
-        base_url = TARGET_SITE.rstrip("/")
-        pages_to_try = [
-            TARGET_SITE,
-            f"{base_url}/terms-conditions.html",
-            f"{base_url}/privacy-policy.html",
-        ]
-
-        scraped_content = ""
-        try:
-            async with httpx.AsyncClient(verify=False) as client:
-                tasks = [fetch_url(client, url) for url in pages_to_try]
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                for url, res in zip(pages_to_try, results):
-                    if isinstance(res, str) and res.strip():
-                        clean = html_to_clean_text(res)
-                        if clean:
-                            scraped_content += f"\n\n--- LIVE PAGE: {url} ---\n{clean}"
-        except Exception as e:
-            logger.warning(f"Live scrape error: {e}")
-
-        base_context = f"{FULL_WEBSITE_KNOWLEDGE_BASE}\n\n=== LIVE SITE CONTENT ===\n{scraped_content.strip()}"
-        base_context = base_context[:18000]
+        base_context = FULL_WEBSITE_KNOWLEDGE_BASE.strip()
         write_cache(base_context)
-
-    # If the user asked a specific query, perform on-the-fly real-time scrape
-    if user_query:
-        live_realtime_matches = await live_search_website(user_query)
-        if live_realtime_matches:
-            return f"{live_realtime_matches}\n\n{base_context}"
 
     return base_context
