@@ -136,31 +136,62 @@ async def health_check():
     }
 
 
-# Dual routing: supports both /api/chat and /predict (for WABA / BotPenguin flow)
 @app.post("/api/chat", response_model=ChatResponse)
 @app.post("/predict", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest):
+async def chat_endpoint(request: ChatRequest, raw_req: Request):
     """
     Main chat endpoint. Compatible with both Web Frontend and WABA chatbot builders.
     Accepts message, query, or text, with fallback response keys (reply, response, output).
     """
-    # Accept message from message, query, text, body, question, prompt, keywords, etc.
-    raw_msg = (
-        request.message
-        or request.query
-        or request.text
-        or request.body
-        or request.question
-        or request.prompt
-        or request.content
-        or request.keywords
-        or request.keyword
-        or ""
-    )
-    user_message = raw_msg.strip()
+    # 1. Read raw body and log it for transparent debugging
+    raw_dict = {}
+    try:
+        body_bytes = await raw_req.body()
+        if body_bytes:
+            raw_dict = json.loads(body_bytes.decode("utf-8", errors="ignore"))
+            logger.info(f"Incoming /predict payload: {json.dumps(raw_dict)}")
+    except Exception as e:
+        logger.warning(f"Could not parse raw request body: {e}")
+
+    # 2. Extract potential user message from typed request or raw dictionary
+    possible_values = [
+        request.message, request.query, request.text, request.body,
+        request.question, request.prompt, request.content,
+        request.keywords, request.keyword,
+        raw_dict.get("message"), raw_dict.get("query"), raw_dict.get("text"),
+        raw_dict.get("body"), raw_dict.get("question"), raw_dict.get("prompt"),
+        raw_dict.get("content"), raw_dict.get("keywords"), raw_dict.get("keyword"),
+        raw_dict.get("input"), raw_dict.get("user_message")
+    ]
+
+    # Check nested dicts (e.g. if start_node or start_nodeObject is passed)
+    for k, v in raw_dict.items():
+        if isinstance(v, dict):
+            for sub_k in ["message", "text", "body", "keywords", "keyword", "query"]:
+                if sub_k in v and v[sub_k]:
+                    possible_values.append(v[sub_k])
+
+    user_message = ""
+    for val in possible_values:
+        if val and isinstance(val, str):
+            clean_val = val.strip()
+            # Skip unresolved template tags like {{start_node...}}
+            if clean_val and not (clean_val.startswith("{{") and clean_val.endswith("}}")):
+                user_message = clean_val
+                break
+
+    # If the user only sent an unresolved template tag, log warning
+    if not user_message:
+        for val in possible_values:
+            if val and isinstance(val, str) and val.strip().startswith("{{"):
+                logger.warning(f"Unresolved template tag detected in request: {val}")
+
     session_id = request.session_id.strip() if request.session_id else f"sess_{uuid.uuid4().hex[:16]}"
+    if not session_id or (session_id.startswith("{{") and session_id.endswith("}}")):
+        session_id = str(raw_dict.get("session_id") or raw_dict.get("receiver_number") or f"sess_{uuid.uuid4().hex[:16]}")
 
     if not user_message:
+        logger.info(f"Empty user_message received. Returning prompt to type a message. Raw payload: {raw_dict}")
         text = "Please type a message so I can help you."
         return ChatResponse(reply=text, response=text, message=text, output=text, answer=text, session_id=session_id)
 
