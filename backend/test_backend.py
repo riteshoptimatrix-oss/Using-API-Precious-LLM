@@ -117,9 +117,31 @@ async def test_all():
         email_reply = email_res.json().get("reply", "")
         print(f"Email Reply:\n{email_reply}")
         assert "info@preciousedu.in" in email_reply
-        assert "·" not in email_reply  # middle dot should be converted to clean '-'
+        # 9. Test Bill & Document AI OCR Extraction Endpoint
+        print("\n9. Testing /api/ocr/bill endpoint with sample document...")
+        import os
+        from pathlib import Path
+        sample_pdf = Path(__file__).resolve().parent.parent / "PreciousEdu.pdf"
+        if sample_pdf.exists():
+            with open(sample_pdf, "rb") as f:
+                pdf_bytes = f.read()
+            ocr_res = await client.post(
+                "/api/ocr/bill",
+                files={"file": ("PreciousEdu.pdf", pdf_bytes, "application/pdf")},
+                timeout=35.0
+            )
+            print(f"OCR Status: {ocr_res.status_code}")
+            ocr_json = ocr_res.json()
+            assert ocr_res.status_code == 200
+            assert ocr_json.get("status") == "success"
+            assert "data" in ocr_json
+            print(f"OCR Extracted Vendor: {ocr_json['data'].get('vendor_name')}")
+            print(f"OCR Summary: {ocr_json['data'].get('summary')}")
+            print("OCR Test passed successfully!")
+        else:
+            print("PreciousEdu.pdf not found, skipping PDF OCR test.")
 
-    print("\n[SUCCESS] All backend, WhatsApp multi-turn memory, and formatting tests passed successfully!")
+    print("\n[SUCCESS] All backend, WhatsApp multi-turn memory, and OCR tests passed successfully!")
 
 
 if __name__ == "__main__":

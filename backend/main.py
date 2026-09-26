@@ -1,11 +1,19 @@
 import json
 import logging
+import sys
 import time
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, Request, Response
+# Ensure backend directory is in python search path
+_backend_dir = str(Path(__file__).resolve().parent)
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
+
+from fastapi import FastAPI, HTTPException, Request, Response, File, UploadFile, Form
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -22,6 +30,7 @@ from config import (
 )
 from gemini_service import ask_gemini, format_whatsapp_text
 from scraper import get_site_context
+from ocr_service import extract_bill_ocr
 
 # Configure structured logging
 logging.basicConfig(
@@ -175,11 +184,141 @@ async def health_check():
     """Health check endpoint to verify backend status."""
     return {
         "status": "healthy",
-        "service": "PreciousEdu Chatbot API",
+        "service": "PreciousEdu Chatbot & Bill OCR API",
         "model": GEMINI_MODEL,
+        "ocr_supported": True,
         "api_keys_configured": len(GEMINI_API_KEYS),
         "target_site": TARGET_SITE
     }
+
+
+class OCRResponse(BaseModel):
+    status: str
+    message: str
+    filename: Optional[str] = ""
+    data: Dict[str, Any] = Field(default_factory=dict)
+
+
+@app.post("/api/ocr/bill", response_model=OCRResponse)
+@app.post("/api/ocr", response_model=OCRResponse)
+async def ocr_bill_endpoint(
+    request: Request,
+    file: Optional[UploadFile] = File(None),
+    file_path: Optional[str] = Form(None)
+):
+    """
+    Multimodal OCR endpoint for extracting invoice and bill details.
+    Accepts:
+    1. Multipart form file ('file')
+    2. File path on disk ('file_path')
+    3. JSON payload with 'file_base64' and 'filename'
+    """
+    file_bytes: Optional[bytes] = None
+    filename = "bill_document"
+    content_type = None
+
+    # Option A: Direct Multipart File Upload
+    if file is not None and file.filename:
+        filename = file.filename
+        content_type = file.content_type
+        file_bytes = await file.read()
+        logger.info(f"Received OCR file upload: '{filename}' ({len(file_bytes)} bytes)")
+
+    # Option B: File Path on Disk (fast when PHP & Python run on same host)
+    elif file_path:
+        import os
+        from pathlib import Path
+
+        possible_paths = [
+            Path(file_path),
+            Path(__file__).resolve().parent / file_path,
+            Path(__file__).resolve().parent.parent / file_path,
+            Path(__file__).resolve().parent.parent / file_path.lstrip("/\\"),
+        ]
+
+        found_path = None
+        for p in possible_paths:
+            if p.exists() and p.is_file():
+                found_path = p
+                break
+
+        if found_path:
+            filename = found_path.name
+            with open(found_path, "rb") as f:
+                file_bytes = f.read()
+            logger.info(f"Loaded OCR file from disk: '{found_path}' ({len(file_bytes)} bytes)")
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": "error",
+                    "message": f"File path '{file_path}' was not found on server.",
+                    "filename": file_path,
+                    "data": {}
+                }
+            )
+
+    # Option C: Raw JSON Payload with Base64
+    else:
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                b64 = body.get("file_base64") or body.get("base64") or body.get("data")
+                filename = body.get("filename") or "bill_document.jpg"
+                content_type = body.get("content_type") or body.get("mime_type")
+                if b64:
+                    import base64
+                    # Remove data URL prefix if present e.g. data:image/png;base64,...
+                    if "," in b64:
+                        b64 = b64.split(",", 1)[1]
+                    file_bytes = base64.b64decode(b64)
+                elif body.get("file_path"):
+                    return await ocr_bill_endpoint(request, file=None, file_path=body.get("file_path"))
+        except Exception as json_err:
+            logger.debug(f"Non-JSON or empty body in OCR request: {json_err}")
+
+    if not file_bytes:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "status": "error",
+                "message": "No file uploaded or file_path provided for OCR processing.",
+                "filename": filename,
+                "data": {}
+            }
+        )
+
+    try:
+        ocr_result = await extract_bill_ocr(
+            file_bytes=file_bytes,
+            filename=filename,
+            content_type=content_type
+        )
+
+        return OCRResponse(
+            status="success",
+            message="Bill OCR extracted successfully",
+            filename=filename,
+            data=ocr_result
+        )
+
+    except Exception as e:
+        logger.error(f"OCR processing failed for '{filename}': {e}", exc_info=True)
+        # Scrub secret keys if any appear in error message
+        safe_msg = str(e)
+        for k in GEMINI_API_KEYS:
+            if k in safe_msg:
+                safe_msg = safe_msg.replace(k, "[REDACTED_KEY]")
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": f"OCR extraction error: {safe_msg}",
+                "filename": filename,
+                "data": {}
+            }
+        )
 
 
 @app.post("/api/chat", response_model=ChatResponse)

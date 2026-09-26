@@ -1,553 +1,744 @@
+<?php include("includes/header.php"); ?>
+
 <?php
-/**
- * PreciousEdu AI Chatbot - Frontend
- *
- * CONFIGURATION:
- * Once you deploy the backend to Render, paste your Render web service URL below:
- * Example: 'https://using-api-precious-llm.onrender.com'
- * (Leave as is for local development; it will automatically fallback to http://localhost:8000)
- */
-$RENDER_BACKEND_URL = 'https://using-api-precious-llm.onrender.com';
+function format_bytes_view($bytes, $precision = 2) {
+    $units = array('B', 'KB', 'MB', 'GB', 'TB');
+    $bytes = max($bytes, 0);
+    $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+    $pow = min($pow, count($units) - 1);
+    $bytes /= pow(1024, $pow);
+    return round($bytes, $precision) . ' ' . $units[$pow];
+}
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PreciousEdu AI Chatbot | 24/7 Study Abroad Assistant</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --bg:#f8f6f2;            /* rich warm pearl background */
-    --surface:#ffffff;       /* pure card surface */
-    --border:#e6e1d8;        /* subtle warm border */
-    --border-hover:#d5cebf;
-    --text:#1a1816;          /* deep charcoal text */
-    --muted:#736d63;         /* refined taupe text */
-    --accent:#171513;        /* obsidian primary accent */
-    --accent-soft:#f3efe8;   /* bot message surface */
-    --whatsapp-green:#25D366;
-    --whatsapp-dark:#128C7E;
-    --error-bg:#fde8e8;
-    --error-text:#9b1c1c;
-    --shadow-sm: 0 2px 8px rgba(0,0,0,0.04);
-    --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
-  }
-  * { box-sizing: border-box; margin:0; padding:0; }
-  html, body { height: 100%; width: 100%; }
-  body {
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    -webkit-font-smoothing: antialiased;
-    overflow: hidden;
-  }
 
-  /* Full viewport width & height layout */
-  .chat-container {
-    width: 100vw;
-    height: 100vh;
-    background: var(--bg);
-    display: flex;
-    flex-direction: column;
-  }
+<div class="content pt-3">
+  <div class="container-fluid">
 
-  /* Premium Header */
-  .chat-header {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 16px 32px;
-    display:flex; align-items:center; justify-content:space-between;
-    flex-shrink: 0;
-    box-shadow: var(--shadow-sm);
-    z-index: 10;
-  }
-  .header-left {
-    display: flex; align-items: center; gap: 14px;
-  }
-  .chat-header .avatar {
-    width:44px; height:44px; border-radius:50%;
-    background: linear-gradient(135deg, #2b2724, #12100e);
-    display:flex; align-items:center; justify-content:center;
-    color:#fff; font-size:16px; font-weight:700; flex-shrink:0;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-  }
-  .chat-header h1 {
-    margin:0; font-size: 16.5px; font-weight:700; letter-spacing:-0.015em; color:var(--text);
-  }
-  .header-status {
-    display: inline-flex; align-items: center; gap: 6px;
-    font-size: 12.5px; color: var(--muted); font-weight: 500;
-  }
-  .status-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: #10B981;
-    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
-    animation: pulseDot 2s infinite ease-in-out;
-  }
-  @keyframes pulseDot {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.2); opacity: 0.7; }
-  }
-
-  .header-actions {
-    display: flex; align-items: center; gap: 10px;
-  }
-  .header-whatsapp-link {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: #eafaf1; color: var(--whatsapp-dark);
-    padding: 8px 14px; border-radius: 999px;
-    text-decoration: none; font-size: 13px; font-weight: 600;
-    border: 1px solid #bbf0d2;
-    transition: all .2s ease;
-  }
-  .header-whatsapp-link:hover {
-    background: #25D366; color: #fff; border-color: #25D366;
-    box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3);
-  }
-
-  /* Chat Body */
-  .chat-body {
-    flex: 1;
-    padding: 24px 0;
-    overflow-y: auto;
-    background: var(--bg);
-    display:flex; flex-direction:column; gap:16px;
-  }
-  .chat-body::-webkit-scrollbar { width: 6px; }
-  .chat-body::-webkit-scrollbar-thumb { background: var(--border-hover); border-radius: 10px; }
-
-  /* Message Column Container */
-  .msg-row {
-    width: 100%;
-    max-width: 840px;
-    margin: 0 auto;
-    padding: 0 32px;
-    display: flex;
-  }
-  .msg-row.user { justify-content: flex-end; }
-  .msg-row.bot { justify-content: flex-start; }
-
-  /* Chat Bubbles */
-  .msg {
-    max-width: 78%;
-    padding: 14px 18px;
-    border-radius: 18px;
-    font-size: 14.5px;
-    line-height: 1.6;
-    animation: fadeIn .25s ease;
-    word-break: break-word;
-  }
-  @keyframes fadeIn { from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
-
-  .msg.user {
-    background: var(--accent);
-    color: #fdfdfc;
-    border-bottom-right-radius: 4px;
-    font-weight: 450;
-    box-shadow: var(--shadow-sm);
-  }
-
-  .msg.bot {
-    background: var(--surface);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-bottom-left-radius: 4px;
-    box-shadow: var(--shadow-sm);
-  }
-
-  .msg.error {
-    background: var(--error-bg);
-    color: var(--error-text);
-    border: 1px solid #f8b4b4;
-    border-bottom-left-radius: 4px;
-  }
-
-  /* Formatted Markdown Content Inside Bot Message */
-  .msg.bot p { margin: 0 0 10px 0; }
-  .msg.bot p:last-child { margin-bottom: 0; }
-  .msg.bot strong { font-weight: 650; color: #111; }
-  .msg.bot em { font-style: italic; color: #333; }
-
-  .chat-list {
-    margin: 8px 0 12px 18px;
-    padding: 0;
-  }
-  .chat-list li {
-    margin-bottom: 6px;
-    line-height: 1.55;
-  }
-  .chat-list li:last-child { margin-bottom: 0; }
-
-  .chat-link {
-    color: #0b69a3;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-    font-weight: 500;
-  }
-  .chat-link:hover { color: #06456c; }
-
-  /* Interactive WhatsApp Quick Action Chip */
-  .whatsapp-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 12px;
-    background: #25D366;
-    color: #ffffff !important;
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 13.5px;
-    padding: 10px 18px;
-    border-radius: 999px;
-    box-shadow: 0 3px 10px rgba(37, 211, 102, 0.35);
-    transition: all .2s ease;
-  }
-  .whatsapp-chip:hover {
-    background: #20bd5a;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 14px rgba(37, 211, 102, 0.45);
-  }
-
-  /* Typing Indicator */
-  .msg.typing {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--muted);
-    display:flex; align-items:center; gap:8px;
-    border-bottom-left-radius: 4px;
-    font-size: 13.5px;
-    padding: 12px 16px;
-  }
-  .dots-group { display:inline-flex; align-items:center; gap:4px; }
-  .dot { width:6px; height:6px; border-radius:50%; background: var(--muted); display:inline-block; animation: blink 1.2s infinite ease-in-out; }
-  .dot:nth-child(2){ animation-delay:.2s; }
-  .dot:nth-child(3){ animation-delay:.4s; }
-  @keyframes blink { 0%,80%,100%{opacity:.25;} 40%{opacity:1;} }
-
-  /* Input Footer Bar */
-  .chat-input {
-    flex-shrink: 0;
-    border-top: 1px solid var(--border);
-    background: var(--surface);
-    padding: 16px 32px 20px;
-  }
-  .chat-input-inner {
-    width: 100%;
-    max-width: 840px;
-    margin: 0 auto;
-    display:flex; align-items:center; gap:10px;
-  }
-  .chat-input input {
-    flex:1; padding: 14px 20px; border: 1px solid var(--border);
-    background: var(--bg);
-    border-radius: 999px; font-size: 14.5px; outline:none; color: var(--text);
-    transition: all .2s ease;
-    font-family: inherit;
-  }
-  .chat-input input::placeholder{ color: var(--muted); }
-  .chat-input input:focus {
-    border-color: var(--accent);
-    background: #fff;
-    box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
-  }
-  .chat-input button {
-    width:48px; height:48px; flex-shrink:0;
-    background: var(--accent); color:#fff; border:none; border-radius:50%;
-    cursor:pointer; font-size:17px; display:flex; align-items:center; justify-content:center;
-    transition: all .15s ease;
-    box-shadow: var(--shadow-sm);
-  }
-  .chat-input button:hover { opacity:.9; transform: scale(1.03); }
-  .chat-input button:active { transform: scale(.96); }
-  .chat-input button:disabled { opacity:.35; cursor:not-allowed; transform:none; }
-
-  @media (max-width: 640px){
-    .chat-header, .chat-input { padding-left: 16px; padding-right: 16px; }
-    .msg-row { padding: 0 16px; }
-    .msg { max-width: 90%; }
-    .header-whatsapp-link span { display: none; }
-  }
-</style>
-</head>
-<body>
-
-<div class="chat-container">
-  <!-- Header -->
-  <header class="chat-header">
-    <div class="header-left">
-      <div class="avatar">PE</div>
-      <div>
-        <h1>PreciousEdu AI Assistant</h1>
-        <div class="header-status">
-          <span class="status-dot"></span>
-          <span>Online &bull; 24/7 Official Counselor</span>
+    <!-- Page Header & Action Bar -->
+    <div class="card card-primary card-outline mb-3 shadow-sm">
+      <div class="card-header bg-white">
+        <div class="row align-items-center">
+          <div class="col-md-6 col-12 mb-2 mb-md-0">
+            <h1 class="h4 mb-0 text-dark font-weight-bold">
+              <i class="fas fa-file-invoice-dollar text-primary mr-2"></i> Bill Export & AI OCR Management
+            </h1>
+            <small class="text-muted">Automated Invoice, Receipt & Bill OCR Extraction powered by Gemini AI</small>
+          </div>
+          <div class="col-md-6 col-12 text-md-right">
+            <button type="button" class="btn btn-primary btn-sm mr-1 shadow-sm" onclick="$('#uploadCollapse').collapse('toggle')">
+              <i class="fas fa-cloud-upload-alt mr-1"></i> Upload Bills
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm shadow-sm" onclick="javascript:location.reload(true)">
+              <i class="fas fa-sync mr-1"></i> Refresh
+            </button>
+          </div>
         </div>
       </div>
     </div>
-    <div class="header-actions">
-      <a href="https://api.whatsapp.com/send?phone=919879361728&text=Hello!%20I%20have%20an%20inquiry%20regarding%20Precious%20Education..." target="_blank" class="header-whatsapp-link" title="Chat on WhatsApp">
-        💬 <span>WhatsApp Helpline</span>
-      </a>
-    </div>
-  </header>
 
-  <!-- Chat Messages -->
-  <main class="chat-body" id="chatBody">
-    <div class="msg-row bot">
-      <div class="msg bot">
-        <p><strong>Hello and welcome!</strong> I am your official <strong>PreciousEdu Assistant</strong> for Precious Education and Immigration Consultant (PEIC).</p>
-        <p>I can assist you with comprehensive details regarding:</p>
-        <ul class="chat-list">
-          <li><strong>Study Visas & Admissions</strong> across 300+ universities in Australia, Canada, UK, USA, New Zealand & Singapore</li>
-          <li><strong>Work Permits, PR & Express Entry</strong> programs</li>
-          <li><strong>IELTS Coaching</strong> at our British Council & IDP authorized center</li>
-          <li><strong>100% Free of Cost Profile Assessment & Counseling</strong></li>
-        </ul>
-        <p>How can I help you today? You may write in English, Hindi, or any language you prefer!</p>
+    <!-- Summary Metrics Row -->
+    <div class="row mb-3">
+      <!-- Total Bills -->
+      <div class="col-xl-3 col-md-6 col-12 mb-2">
+        <div class="small-box bg-info shadow-sm rounded">
+          <div class="inner p-3">
+            <h3><?php echo number_format($this->total_files ?? 0); ?></h3>
+            <p class="mb-0 font-weight-bold">Total Uploaded Bills</p>
+            <small class="text-white-50"><?php echo format_bytes_view($this->total_size ?? 0); ?> storage used</small>
+          </div>
+          <div class="icon">
+            <i class="fas fa-file-invoice"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- OCR Processed -->
+      <div class="col-xl-3 col-md-6 col-12 mb-2">
+        <div class="small-box bg-success shadow-sm rounded">
+          <div class="inner p-3">
+            <h3><?php echo number_format($this->total_ocr_done ?? 0); ?></h3>
+            <p class="mb-0 font-weight-bold">OCR Processed</p>
+            <small class="text-white-50">Extracted by Gemini AI</small>
+          </div>
+          <div class="icon">
+            <i class="fas fa-check-circle"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Total Billed Amount -->
+      <div class="col-xl-3 col-md-6 col-12 mb-2">
+        <div class="small-box bg-primary shadow-sm rounded">
+          <div class="inner p-3">
+            <h3>₹ <?php echo number_format($this->total_billed_amount ?? 0, 2); ?></h3>
+            <p class="mb-0 font-weight-bold">Total Bill Value</p>
+            <small class="text-white-50">Calculated from parsed bills</small>
+          </div>
+          <div class="icon">
+            <i class="fas fa-coins"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- OCR Pending / Failed -->
+      <div class="col-xl-3 col-md-6 col-12 mb-2">
+        <div class="small-box bg-warning shadow-sm rounded">
+          <div class="inner p-3">
+            <h3><?php echo number_format($this->total_ocr_pending ?? 0); ?></h3>
+            <p class="mb-0 font-weight-bold text-dark">OCR Pending / Review</p>
+            <small class="text-dark">Ready for reprocessing</small>
+          </div>
+          <div class="icon">
+            <i class="fas fa-hourglass-half"></i>
+          </div>
+        </div>
       </div>
     </div>
-  </main>
 
-  <!-- Input Area -->
-  <footer class="chat-input">
-    <div class="chat-input-inner">
-      <input type="text" id="userInput" placeholder="Ask about courses, admissions, visas, or contact details..." autocomplete="off">
-      <button id="sendBtn" onclick="sendMessage()" aria-label="Send">➤</button>
+    <!-- Upload Section Card -->
+    <div class="collapse show mb-3" id="uploadCollapse">
+      <div class="card card-primary card-outline shadow-sm">
+        <div class="card-header bg-light py-2">
+          <h3 class="card-title font-weight-bold mb-0">
+            <i class="fas fa-cloud-upload-alt text-primary mr-2"></i> Upload New Bill Files & Images (Auto AI OCR)
+          </h3>
+        </div>
+        <div class="card-body">
+          <form action="index.php?view=bill_export_list" method="POST" enctype="multipart/form-data" id="frm_upload_bill">
+            <input type="hidden" name="act" value="upload_bill">
+
+            <div class="upload-drop-zone p-4 text-center border rounded mb-3 bg-light" id="drop_zone" style="border: 2px dashed #007bff !important; transition: all 0.3s ease;">
+              <i class="fas fa-file-upload fa-3x text-primary mb-2"></i>
+              <h5 class="font-weight-bold text-dark">Drag and drop bill files or images here</h5>
+              <p class="text-muted small mb-3">Supports Invoices & Bills in Image format (JPG, PNG, WEBP) and PDF Documents</p>
+              
+              <div class="d-inline-block">
+                <label for="bill_files" class="btn btn-primary btn-md px-4 py-2 cursor-pointer mb-0 shadow-sm font-weight-bold">
+                  <i class="fas fa-folder-open mr-2"></i> Choose Bill Files...
+                </label>
+                <input type="file" name="bill_files[]" id="bill_files" class="d-none" multiple required onchange="handleFileSelect(this)">
+              </div>
+            </div>
+
+            <!-- Selected Files Preview Container -->
+            <div id="file_preview_list" class="mb-3 d-none">
+              <label class="font-weight-bold small text-muted">Selected File(s) to Upload & Process:</label>
+              <div class="d-flex flex-wrap gap-2" id="selected_files_badges"></div>
+            </div>
+
+            <div class="row align-items-center">
+              <div class="col-md-8 text-muted small">
+                <i class="fas fa-magic text-primary mr-1"></i> <strong>AI Multimodal OCR Active:</strong> Each uploaded file is automatically processed by Gemini Vision to extract Vendor Name, Bill Number, Amounts, Taxes, and Line Items.
+              </div>
+              <div class="col-md-4 text-right mt-2 mt-md-0">
+                <button type="submit" class="btn btn-danger btn-block font-weight-bold shadow-sm" id="btn_upload_submit">
+                  <i class="fas fa-upload mr-1"></i> Upload & Process OCR Now
+                </button>
+              </div>
+            </div>
+
+          </form>
+        </div>
+      </div>
     </div>
-  </footer>
+
+    <!-- Filter & Search Section -->
+    <div class="card card-outline card-secondary mb-3 shadow-sm">
+      <div class="card-header py-2 bg-light">
+        <form action="index.php?view=bill_export_list" method="POST" class="form-inline" id="frm_search_bill">
+          <div class="form-group mr-3 mb-2 mb-md-0">
+            <label for="search_query" class="small font-weight-bold mr-2">Search:</label>
+            <input type="text" name="search_query" id="search_query" class="form-control form-control-sm" placeholder="Vendor, Bill #, or File name..." value="<?php echo htmlspecialchars($this->search_query ?? ''); ?>" style="min-width: 240px;">
+          </div>
+
+          <div class="form-group mr-3 mb-2 mb-md-0">
+            <label for="ocr_filter" class="small font-weight-bold mr-2">OCR Status:</label>
+            <select name="ocr_filter" id="ocr_filter" class="form-control form-control-sm" style="min-width: 150px;">
+              <option value="">All Statuses</option>
+              <option value="completed" <?php echo (isset($this->ocr_filter) && $this->ocr_filter == 'completed' ? 'selected' : ''); ?>>OCR Completed</option>
+              <option value="processing" <?php echo (isset($this->ocr_filter) && $this->ocr_filter == 'processing' ? 'selected' : ''); ?>>Processing</option>
+              <option value="pending" <?php echo (isset($this->ocr_filter) && $this->ocr_filter == 'pending' ? 'selected' : ''); ?>>Pending</option>
+              <option value="failed" <?php echo (isset($this->ocr_filter) && $this->ocr_filter == 'failed' ? 'selected' : ''); ?>>Failed</option>
+            </select>
+          </div>
+
+          <div class="form-group mr-3 mb-2 mb-md-0">
+            <label for="file_category" class="small font-weight-bold mr-2">File Type:</label>
+            <select name="file_category" id="file_category" class="form-control form-control-sm" style="min-width: 140px;">
+              <option value="">All Files</option>
+              <option value="image" <?php echo (isset($this->file_category) && $this->file_category == 'image' ? 'selected' : ''); ?>>Images Only</option>
+              <option value="document" <?php echo (isset($this->file_category) && $this->file_category == 'document' ? 'selected' : ''); ?>>PDF & Docs Only</option>
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-sm mr-2 mb-2 mb-md-0 shadow-sm">
+            <i class="fas fa-search mr-1"></i> Filter
+          </button>
+          <a href="index.php?view=bill_export_list" class="btn btn-secondary btn-sm mb-2 mb-md-0">
+            <i class="fas fa-undo mr-1"></i> Reset
+          </a>
+        </form>
+      </div>
+    </div>
+
+    <!-- Bills Listing Table Card -->
+    <div class="card shadow-sm">
+      <div class="card-header bg-white border-bottom py-2">
+        <h3 class="card-title font-weight-bold mb-0">
+          <i class="fas fa-list text-primary mr-2"></i> Uploaded Bills with AI OCR Extracted Information
+        </h3>
+      </div>
+      <div class="card-body p-0 table-responsive">
+        <?php echo $this->utility->get_message(); ?>
+
+        <table class="table table-hover table-bordered table-striped align-middle mb-0" id="tbl_bills">
+          <thead class="thead-light">
+            <tr>
+              <th style="width: 50px;" class="text-center">ID</th>
+              <th style="width: 80px;" class="text-center">Preview</th>
+              <th>Bill & Vendor Info</th>
+              <th style="width: 150px;">Bill # & Date</th>
+              <th style="width: 140px;" class="text-right">Total Amount</th>
+              <th style="width: 120px;" class="text-center">OCR Status</th>
+              <th style="width: 140px;">Uploaded By</th>
+              <th style="width: 180px;" class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php
+            if (isset($this->rs_bills) && count($this->rs_bills) > 0) {
+              foreach ($this->rs_bills as $bill) {
+                $ext = strtolower(pathinfo($bill['original_name'], PATHINFO_EXTENSION));
+                $mime = strtolower($bill['file_type']);
+                $is_image = (strpos($mime, 'image/') !== false || in_array($ext, array('jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg')));
+                $file_url = "../" . $bill['file_path'];
+                $formatted_size = format_bytes_view($bill['file_size']);
+                $ocr_status = strtolower($bill['ocr_status'] ?? 'pending');
+            ?>
+              <tr id="row_bill_<?php echo $bill['id']; ?>">
+                <!-- ID -->
+                <td class="text-center font-weight-bold align-middle"><?php echo htmlspecialchars($bill['id']); ?></td>
+
+                <!-- Thumbnail / Preview -->
+                <td class="text-center align-middle">
+                  <?php if ($is_image) { ?>
+                    <img src="<?php echo htmlspecialchars($file_url); ?>" alt="Bill Image" class="img-thumbnail rounded cursor-pointer bill-thumb" style="width: 50px; height: 50px; object-fit: cover; border: 1px solid #dee2e6;" onclick="openImageModal('<?php echo htmlspecialchars($file_url); ?>', '<?php echo htmlspecialchars(addslashes($bill['original_name'])); ?>')">
+                  <?php } elseif (in_array($ext, array('pdf'))) { ?>
+                    <span class="badge badge-light p-2 border"><i class="fas fa-file-pdf fa-2x text-danger"></i></span>
+                  <?php } else { ?>
+                    <span class="badge badge-light p-2 border"><i class="fas fa-file-alt fa-2x text-secondary"></i></span>
+                  <?php } ?>
+                </td>
+
+                <!-- Bill & Vendor Info -->
+                <td class="align-middle">
+                  <?php if (!empty($bill['vendor_name'])) { ?>
+                    <div class="font-weight-bold text-dark">
+                      <i class="fas fa-store text-primary mr-1"></i> <?php echo htmlspecialchars($bill['vendor_name']); ?>
+                    </div>
+                  <?php } ?>
+                  <div>
+                    <a href="<?php echo htmlspecialchars($file_url); ?>" target="_blank" class="text-primary text-decoration-none small font-weight-bold">
+                      <i class="fas fa-paperclip mr-1"></i> <?php echo htmlspecialchars($bill['original_name']); ?>
+                    </a>
+                  </div>
+                  <div class="small text-muted">
+                    <span class="badge badge-secondary uppercase px-1"><?php echo strtoupper($ext); ?></span>
+                    <span class="ml-1"><?php echo $formatted_size; ?></span>
+                  </div>
+                </td>
+
+                <!-- Bill # & Date -->
+                <td class="align-middle small">
+                  <?php if (!empty($bill['bill_number'])) { ?>
+                    <div class="font-weight-bold text-dark">
+                      <i class="fas fa-hashtag text-muted mr-1"></i><?php echo htmlspecialchars($bill['bill_number']); ?>
+                    </div>
+                  <?php } else { ?>
+                    <span class="text-muted font-italic">No Bill #</span>
+                  <?php } ?>
+
+                  <?php if (!empty($bill['bill_date'])) { ?>
+                    <div class="text-muted">
+                      <i class="far fa-calendar-alt text-secondary mr-1"></i><?php echo htmlspecialchars($bill['bill_date']); ?>
+                    </div>
+                  <?php } ?>
+                </td>
+
+                <!-- Total Amount -->
+                <td class="align-middle text-right">
+                  <?php if (!empty($bill['total_amount'])) { ?>
+                    <div class="font-weight-bold text-success h6 mb-0">
+                      <?php echo htmlspecialchars($bill['currency'] ?: '₹'); ?> <?php echo htmlspecialchars($bill['total_amount']); ?>
+                    </div>
+                    <?php if (!empty($bill['tax_amount'])) { ?>
+                      <small class="text-muted d-block">Tax: <?php echo htmlspecialchars($bill['tax_amount']); ?></small>
+                    <?php } ?>
+                  <?php } else { ?>
+                    <span class="text-muted font-italic small">-</span>
+                  <?php } ?>
+                </td>
+
+                <!-- OCR Status -->
+                <td class="text-center align-middle">
+                  <?php if ($ocr_status == 'completed') { ?>
+                    <span class="badge badge-success px-2 py-1"><i class="fas fa-check-circle mr-1"></i> Done</span>
+                  <?php } elseif ($ocr_status == 'processing') { ?>
+                    <span class="badge badge-info px-2 py-1"><i class="fas fa-spinner fa-spin mr-1"></i> Processing</span>
+                  <?php } elseif ($ocr_status == 'failed') { ?>
+                    <span class="badge badge-danger px-2 py-1" title="<?php echo htmlspecialchars($bill['ocr_summary'] ?? 'OCR Failed'); ?>"><i class="fas fa-exclamation-circle mr-1"></i> Failed</span>
+                  <?php } else { ?>
+                    <span class="badge badge-secondary px-2 py-1"><i class="fas fa-clock mr-1"></i> Pending</span>
+                  <?php } ?>
+                </td>
+
+                <!-- Uploaded By & Date -->
+                <td class="align-middle small">
+                  <div class="font-weight-bold text-dark">
+                    <i class="fas fa-user-circle text-secondary mr-1"></i> <?php echo htmlspecialchars($bill['uploaded_by_name'] ?? 'Admin User'); ?>
+                  </div>
+                  <div class="text-muted">
+                    <i class="far fa-clock mr-1"></i> <?php echo date('d-m-Y h:i A', strtotime($bill['created_at'])); ?>
+                  </div>
+                </td>
+
+                <!-- Actions -->
+                <td class="text-center align-middle">
+                  <!-- View OCR Details Button -->
+                  <button type="button" class="btn btn-sm btn-primary mr-1 shadow-sm" title="View Extracted OCR Data" onclick="viewOcrModal(<?php echo $bill['id']; ?>)">
+                    <i class="fas fa-file-invoice"></i> OCR
+                  </button>
+
+                  <!-- Preview / View File -->
+                  <?php if ($is_image) { ?>
+                    <button type="button" class="btn btn-sm btn-info mr-1 shadow-sm" title="Preview Image" onclick="openImageModal('<?php echo htmlspecialchars($file_url); ?>', '<?php echo htmlspecialchars(addslashes($bill['original_name'])); ?>')">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                  <?php } else { ?>
+                    <a href="<?php echo htmlspecialchars($file_url); ?>" target="_blank" class="btn btn-sm btn-info mr-1 shadow-sm" title="View Document">
+                      <i class="fas fa-external-link-alt"></i>
+                    </a>
+                  <?php } ?>
+
+                  <!-- Reprocess OCR Button -->
+                  <button type="button" class="btn btn-sm btn-warning mr-1 shadow-sm btn-reprocess-ocr" title="Re-run AI OCR" onclick="reprocessOcr(<?php echo $bill['id']; ?>, this)">
+                    <i class="fas fa-sync"></i>
+                  </button>
+
+                  <!-- Delete -->
+                  <button type="button" class="btn btn-sm btn-danger shadow-sm" title="Delete File" onclick="confirmDeleteBill(<?php echo $bill['id']; ?>, '<?php echo htmlspecialchars(addslashes($bill['original_name'])); ?>')">
+                    <i class="fas fa-trash-alt"></i>
+                  </button>
+                </td>
+              </tr>
+            <?php
+              }
+            } else {
+            ?>
+              <tr>
+                <td colspan="8" class="text-center text-muted py-5">
+                  <i class="fas fa-folder-open fa-3x text-muted mb-3 d-block"></i>
+                  <h5 class="font-weight-bold">No Bill Files Uploaded Yet</h5>
+                  <p class="small text-muted">Upload bill images or PDFs above. AI will automatically extract financial data!</p>
+                </td>
+              </tr>
+            <?php
+            }
+            ?>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Card Footer Pagination -->
+      <div class="card-footer bg-white border-top py-3">
+        <?php echo $this->objDB->show_paging("rs_bills"); ?>
+      </div>
+    </div>
+
+  </div>
 </div>
 
+<!-- ===================================================================== -->
+<!-- OCR Details Inspection Modal -->
+<!-- ===================================================================== -->
+<div class="modal fade" id="ocrDetailsModal" tabindex="-1" role="dialog" aria-labelledby="ocrDetailsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+    <div class="modal-content shadow-lg border-0">
+      
+      <div class="modal-header bg-primary text-white py-3">
+        <h5 class="modal-title font-weight-bold" id="ocrDetailsModalLabel">
+          <i class="fas fa-file-invoice-dollar mr-2"></i> AI OCR Extracted Bill Information
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+
+      <div class="modal-body p-4 bg-light" id="ocrModalBody">
+        <!-- Dynamic loading spinner -->
+        <div class="text-center py-5" id="ocrModalLoading">
+          <i class="fas fa-spinner fa-spin fa-3x text-primary mb-3"></i>
+          <h5 class="font-weight-bold">Fetching OCR Data...</h5>
+          <p class="text-muted small">Please wait while details are loaded.</p>
+        </div>
+
+        <!-- Dynamic details content -->
+        <div id="ocrModalContent" class="d-none">
+
+          <!-- Top Summary Alert -->
+          <div class="alert alert-info border-left shadow-sm py-2 px-3 mb-3" style="border-left: 4px solid #17a2b8 !important;">
+            <i class="fas fa-info-circle mr-1 font-weight-bold"></i> <strong>AI Summary:</strong> <span id="ocr_summary_text">-</span>
+          </div>
+
+          <div class="row">
+            <!-- Left Column: Primary Extracted Fields -->
+            <div class="col-md-6 mb-3">
+              <div class="card h-100 shadow-sm border-0">
+                <div class="card-header bg-white font-weight-bold text-dark border-bottom py-2">
+                  <i class="fas fa-receipt text-primary mr-1"></i> Bill & Merchant Details
+                </div>
+                <div class="card-body p-3">
+                  <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                      <th class="text-muted" style="width: 140px;">Vendor / Seller:</th>
+                      <td class="font-weight-bold text-dark" id="ocr_vendor_name">-</td>
+                    </tr>
+                    <tr>
+                      <th class="text-muted">Bill / Invoice #:</th>
+                      <td class="font-weight-bold" id="ocr_bill_number">-</td>
+                    </tr>
+                    <tr>
+                      <th class="text-muted">Bill Date:</th>
+                      <td id="ocr_bill_date">-</td>
+                    </tr>
+                    <tr>
+                      <th class="text-muted">Due Date:</th>
+                      <td id="ocr_due_date">-</td>
+                    </tr>
+                    <tr>
+                      <th class="text-muted">Payment Status:</th>
+                      <td id="ocr_payment_status">-</td>
+                    </tr>
+                    <tr>
+                      <th class="text-muted">Original File:</th>
+                      <td><a href="" id="ocr_file_link" target="_blank" class="text-primary font-weight-bold">-</a></td>
+                    </tr>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Column: Financial Figures -->
+            <div class="col-md-6 mb-3">
+              <div class="card h-100 shadow-sm border-0">
+                <div class="card-header bg-white font-weight-bold text-dark border-bottom py-2">
+                  <i class="fas fa-money-bill-wave text-success mr-1"></i> Financial Summary
+                </div>
+                <div class="card-body p-3">
+                  <table class="table table-sm table-borderless mb-0">
+                    <tr>
+                      <th class="text-muted" style="width: 140px;">Subtotal:</th>
+                      <td class="font-weight-bold" id="ocr_subtotal">-</td>
+                    </tr>
+                    <tr>
+                      <th class="text-muted">Tax / GST:</th>
+                      <td class="font-weight-bold text-warning" id="ocr_tax_amount">-</td>
+                    </tr>
+                    <tr>
+                      <th class="text-muted h5 mb-0">Grand Total:</th>
+                      <td class="h4 font-weight-bold text-success mb-0" id="ocr_total_amount">-</td>
+                    </tr>
+                    <tr>
+                      <th class="text-muted">Currency:</th>
+                      <td class="badge badge-light border px-2 py-1 mt-1" id="ocr_currency">INR</td>
+                    </tr>
+                    <tr>
+                      <th class="text-muted">OCR Status:</th>
+                      <td id="ocr_status_badge">-</td>
+                    </tr>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Line Items Table -->
+          <div class="card mb-3 shadow-sm border-0">
+            <div class="card-header bg-white font-weight-bold text-dark border-bottom py-2">
+              <i class="fas fa-list-ol text-primary mr-1"></i> Line Items / Products Breakdown
+            </div>
+            <div class="card-body p-0 table-responsive">
+              <table class="table table-sm table-hover table-bordered mb-0">
+                <thead class="thead-light">
+                  <tr>
+                    <th style="width: 40px;" class="text-center">#</th>
+                    <th>Item Description</th>
+                    <th style="width: 100px;" class="text-center">Qty</th>
+                    <th style="width: 130px;" class="text-right">Unit Price</th>
+                    <th style="width: 140px;" class="text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody id="ocr_items_tbody">
+                  <tr><td colspan="5" class="text-center text-muted py-3">No line items detected</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Raw OCR Text & JSON Accordion -->
+          <div class="accordion" id="ocrRawAccordion">
+            <div class="card shadow-sm border-0 mb-2">
+              <div class="card-header bg-white p-2" id="headingText">
+                <button class="btn btn-link btn-block text-left text-dark font-weight-bold p-0 collapsed" type="button" data-toggle="collapse" data-target="#collapseText" aria-expanded="false" aria-controls="collapseText">
+                  <i class="fas fa-align-left text-secondary mr-2"></i> Raw Transcribed Document Text <i class="fas fa-chevron-down float-right mt-1"></i>
+                </button>
+              </div>
+              <div id="collapseText" class="collapse" aria-labelledby="headingText" data-parent="#ocrRawAccordion">
+                <div class="card-body p-3 bg-light">
+                  <pre id="ocr_raw_text" class="p-3 bg-white border rounded" style="max-height: 250px; overflow-y: auto; white-space: pre-wrap; font-size: 13px;"></pre>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="modal-footer py-2 bg-white">
+        <button type="button" class="btn btn-warning btn-sm" id="btn_modal_reprocess">
+          <i class="fas fa-sync mr-1"></i> Re-run AI OCR
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Close</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Image Preview Modal -->
+<div class="modal fade" id="imagePreviewModal" tabindex="-1" role="dialog" aria-labelledby="imagePreviewModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white py-2">
+        <h5 class="modal-title font-weight-bold" id="imagePreviewModalLabel">
+          <i class="fas fa-image mr-2"></i> <span id="modal_image_title">Bill Image Preview</span>
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body text-center p-3 bg-light">
+        <img src="" id="modal_image_src" class="img-fluid rounded shadow-sm" style="max-height: 75vh; object-fit: contain;">
+      </div>
+      <div class="modal-footer py-2 bg-white">
+        <a href="" id="modal_download_btn" download class="btn btn-primary btn-sm">
+          <i class="fas fa-download mr-1"></i> Download Original Image
+        </a>
+        <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Bill Form -->
+<form id="frm_delete_bill" action="index.php?view=bill_export_list" method="POST" style="display:none;">
+  <input type="hidden" name="act" value="delete_bill">
+  <input type="hidden" name="id" id="delete_bill_id">
+</form>
+
+<style>
+.upload-drop-zone:hover {
+  background-color: #e9ecef !important;
+  border-color: #0056b3 !important;
+}
+.cursor-pointer {
+  cursor: pointer;
+}
+.bill-thumb:hover {
+  transform: scale(1.08);
+  transition: transform 0.2s ease-in-out;
+}
+.gap-2 {
+  gap: 0.5rem;
+}
+</style>
+
 <script>
-// --- Backend Endpoint Configuration ---
-const phpRenderUrl = "<?= htmlspecialchars($RENDER_BACKEND_URL, ENT_QUOTES, 'UTF-8'); ?>";
-const urlParamApi = new URLSearchParams(window.location.search).get('api');
+var currentActiveBillId = 0;
 
-let resolvedBaseUrl = 'http://localhost:8000';
-if (urlParamApi) {
-  resolvedBaseUrl = urlParamApi;
-} else if (window.FASTAPI_BACKEND_URL) {
-  resolvedBaseUrl = window.FASTAPI_BACKEND_URL;
-} else if (phpRenderUrl && !phpRenderUrl.includes('YOUR-APP-NAME')) {
-  resolvedBaseUrl = phpRenderUrl;
-}
-
-const BACKEND_API_URL = resolvedBaseUrl.replace(/\/+$/, '') + '/api/chat';
-console.log('[PreciousEdu] Connected to Backend endpoint:', BACKEND_API_URL);
-
-let history = []; // {role: 'user'|'bot', text: '...'}
-
-// Session storage management
-function getOrCreateSessionId() {
-  let id = localStorage.getItem('pe_chat_session_id');
-  if (!id) {
-    id = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 12);
-    localStorage.setItem('pe_chat_session_id', id);
+function handleFileSelect(input) {
+  var container = $('#selected_files_badges');
+  container.empty();
+  
+  if (input.files && input.files.length > 0) {
+    $('#file_preview_list').removeClass('d-none');
+    for (var i = 0; i < input.files.length; i++) {
+      var f = input.files[i];
+      var sizeKb = (f.size / 1024).toFixed(1) + ' KB';
+      var badge = $('<span class="badge badge-info p-2 mr-1 mb-1 font-weight-normal"><i class="fas fa-file mr-1"></i> ' + f.name + ' (' + sizeKb + ')</span>');
+      container.append(badge);
+    }
+  } else {
+    $('#file_preview_list').addClass('d-none');
   }
-  return id;
 }
-const sessionId = getOrCreateSessionId();
 
-const chatBody = document.getElementById('chatBody');
-const userInput = document.getElementById('userInput');
-const sendBtn = document.getElementById('sendBtn');
+function openImageModal(imgSrc, title) {
+  $('#modal_image_src').attr('src', imgSrc);
+  $('#modal_image_title').text(title);
+  $('#modal_download_btn').attr('href', imgSrc).attr('download', title);
+  $('#imagePreviewModal').modal('show');
+}
 
-userInput.addEventListener('keydown', function(e){
-  if (e.key === 'Enter') sendMessage();
+function confirmDeleteBill(id, filename) {
+  if (confirm("Are you sure you want to delete the bill file '" + filename + "'? This action cannot be undone.")) {
+    $('#delete_bill_id').val(id);
+    $('#frm_delete_bill').submit();
+  }
+}
+
+function viewOcrModal(billId) {
+  currentActiveBillId = billId;
+  $('#ocrModalLoading').removeClass('d-none');
+  $('#ocrModalContent').addClass('d-none');
+  $('#ocrDetailsModal').modal('show');
+
+  // Fetch OCR Details via AJAX
+  $.ajax({
+    url: 'index.php?view=bill_export_list&act=get_ocr_details&id=' + billId,
+    type: 'GET',
+    dataType: 'json',
+    success: function(resp) {
+      $('#ocrModalLoading').addClass('d-none');
+      if (resp.status === 'success' && resp.bill) {
+        var b = resp.bill;
+        $('#ocrModalContent').removeClass('d-none');
+
+        // Populate fields
+        $('#ocr_summary_text').text(b.ocr_summary || 'Document extracted successfully.');
+        $('#ocr_vendor_name').text(b.vendor_name || 'Not detected');
+        $('#ocr_bill_number').text(b.bill_number || 'Not detected');
+        $('#ocr_bill_date').text(b.bill_date || '-');
+        $('#ocr_due_date').text(b.due_date || '-');
+        $('#ocr_payment_status').text(b.payment_status || 'Unknown');
+        
+        var cur = b.currency || 'INR';
+        $('#ocr_currency').text(cur);
+        $('#ocr_subtotal').text(b.subtotal ? (cur + ' ' + b.subtotal) : '-');
+        $('#ocr_tax_amount').text(b.tax_amount ? (cur + ' ' + b.tax_amount) : '-');
+        $('#ocr_total_amount').text(b.total_amount ? (cur + ' ' + b.total_amount) : 'Not detected');
+
+        $('#ocr_file_link').attr('href', '../' + b.file_path).text(b.original_name);
+
+        var stBadge = '<span class="badge badge-secondary">Pending</span>';
+        if (b.ocr_status === 'completed') {
+          stBadge = '<span class="badge badge-success px-2 py-1"><i class="fas fa-check-circle mr-1"></i> Completed</span>';
+        } else if (b.ocr_status === 'failed') {
+          stBadge = '<span class="badge badge-danger px-2 py-1"><i class="fas fa-times-circle mr-1"></i> Failed</span>';
+        }
+        $('#ocr_status_badge').html(stBadge);
+
+        // Populate Line Items Table
+        var itemsTbody = $('#ocr_items_tbody');
+        itemsTbody.empty();
+        if (b.ocr_data && b.ocr_data.items && b.ocr_data.items.length > 0) {
+          $.each(b.ocr_data.items, function(idx, item) {
+            var row = $('<tr>' +
+              '<td class="text-center font-weight-bold">' + (idx + 1) + '</td>' +
+              '<td>' + (item.description || '-') + '</td>' +
+              '<td class="text-center">' + (item.quantity || '1') + '</td>' +
+              '<td class="text-right">' + (item.unit_price ? (cur + ' ' + item.unit_price) : '-') + '</td>' +
+              '<td class="text-right font-weight-bold text-dark">' + (item.amount ? (cur + ' ' + item.amount) : '-') + '</td>' +
+              '</tr>');
+            itemsTbody.append(row);
+          });
+        } else {
+          itemsTbody.append('<tr><td colspan="5" class="text-center text-muted py-3">No line items breakdown detected in this bill.</td></tr>');
+        }
+
+        // Raw Text
+        $('#ocr_raw_text').text(b.ocr_text || 'No raw text available.');
+
+      } else {
+        alert(resp.message || 'Error loading OCR data.');
+        $('#ocrDetailsModal').modal('hide');
+      }
+    },
+    error: function() {
+      $('#ocrModalLoading').addClass('d-none');
+      alert('Network error while loading OCR data.');
+    }
+  });
+}
+
+function reprocessOcr(billId, btnEl) {
+  var $btn = $(btnEl);
+  var originalHtml = $btn.html();
+  $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+  $.ajax({
+    url: 'index.php?view=bill_export_list&act=reprocess_ocr&ajax=1&id=' + billId,
+    type: 'GET',
+    dataType: 'json',
+    success: function(resp) {
+      $btn.prop('disabled', false).html(originalHtml);
+      if (resp.status === 'success') {
+        alert('AI OCR completed successfully!');
+        location.reload();
+      } else {
+        alert('OCR failed: ' + (resp.message || 'Unknown error'));
+      }
+    },
+    error: function() {
+      $btn.prop('disabled', false).html(originalHtml);
+      alert('Network error contacting server for OCR reprocessing.');
+    }
+  });
+}
+
+$('#btn_modal_reprocess').on('click', function() {
+  if (currentActiveBillId > 0) {
+    reprocessOcr(currentActiveBillId, this);
+  }
 });
 
-// Format raw text with rich markdown formatting (bold, lists, auto-links, WhatsApp button)
-function formatChatContent(rawText) {
-  if (!rawText) return '';
+$(document).ready(function() {
+  // Drag and drop events for drop zone
+  var dropZone = document.getElementById('drop_zone');
+  var fileInput = document.getElementById('bill_files');
 
-  // 1. Escape basic HTML for security
-  let safe = rawText
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-
-  // 2. Handle markdown links [label](url) if present
-  safe = safe.replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g, (match, label, url) => {
-    return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link">${label === url ? url : label}</a>`;
-  });
-
-  // 2b. Bold text: support both **text** and WhatsApp single asterisk *text*
-  safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  safe = safe.replace(/(^|[^\*])\*([^\*\n\s][^\*\n]*?[^\*\n\s]|[^\*\n\s])\*([^\*]|$)/g, '$1<strong>$2</strong>$3');
-
-  // 3. Process lists and paragraphs
-  const lines = safe.split('\n');
-  let inUnorderedList = false;
-  let inOrderedList = false;
-  let htmlLines = [];
-
-  for (let line of lines) {
-    const trimmed = line.trim();
-
-    if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
-      if (!inUnorderedList) {
-        htmlLines.push('<ul class="chat-list">');
-        inUnorderedList = true;
-      }
-      htmlLines.push(`<li>${trimmed.substring(2)}</li>`);
-    } else if (/^\d+\.\s+/.test(trimmed)) {
-      if (!inOrderedList) {
-        htmlLines.push('<ol class="chat-list">');
-        inOrderedList = true;
-      }
-      const itemContent = trimmed.replace(/^\d+\.\s+/, '');
-      htmlLines.push(`<li>${itemContent}</li>`);
-    } else {
-      if (inUnorderedList) {
-        htmlLines.push('</ul>');
-        inUnorderedList = false;
-      }
-      if (inOrderedList) {
-        htmlLines.push('</ol>');
-        inOrderedList = false;
-      }
-
-      if (trimmed === '') {
-        // empty line
-      } else {
-        htmlLines.push(`<p>${line}</p>`);
-      }
-    }
-  }
-
-  if (inUnorderedList) htmlLines.push('</ul>');
-  if (inOrderedList) htmlLines.push('</ol>');
-
-  let result = htmlLines.join('');
-
-  // 4. Auto-link emails (info@preciousedu.in)
-  result = result.replace(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+)/gi, '<a href="mailto:$1" class="chat-link">$1</a>');
-
-  // 5. Auto-link URLs
-  result = result.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="chat-link">$1</a>');
-
-  // 6. If contact details or WhatsApp number is present, add an official WhatsApp quick-action button
-  if (rawText.includes('9879361728') || rawText.toLowerCase().includes('whatsapp') || rawText.toLowerCase().includes('office address')) {
-    result += `
-      <div style="margin-top: 10px;">
-        <a href="https://api.whatsapp.com/send?phone=919879361728&text=Hello!%20I%20have%20an%20inquiry%20regarding%20Precious%20Education..." target="_blank" class="whatsapp-chip">
-          💬 Chat on WhatsApp (+91 9879361728)
-        </a>
-      </div>
-    `;
-  }
-
-  return result;
-}
-
-function appendMessage(text, role, isError = false) {
-  const row = document.createElement('div');
-  row.className = 'msg-row ' + role;
-  const bubble = document.createElement('div');
-  bubble.className = 'msg ' + role + (isError ? ' error' : '');
-
-  if (role === 'bot' && !isError) {
-    bubble.innerHTML = formatChatContent(text);
-  } else {
-    bubble.textContent = text;
-  }
-
-  row.appendChild(bubble);
-  chatBody.appendChild(row);
-  chatBody.scrollTop = chatBody.scrollHeight;
-  return row;
-}
-
-function appendTyping() {
-  const row = document.createElement('div');
-  row.className = 'msg-row bot';
-  const bubble = document.createElement('div');
-  bubble.className = 'msg typing bot';
-  bubble.innerHTML = '<span class="dots-group"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span><span class="typing-status">Thinking...</span>';
-  row.appendChild(bubble);
-  chatBody.appendChild(row);
-  chatBody.scrollTop = chatBody.scrollHeight;
-  return row;
-}
-
-async function sendMessage() {
-  const text = userInput.value.trim();
-  if (!text) return;
-
-  appendMessage(text, 'user');
-  history.push({ role: 'user', text: text });
-  userInput.value = '';
-  sendBtn.disabled = true;
-
-  const typingEl = appendTyping();
-  const typingStatusEl = typingEl.querySelector('.typing-status');
-
-  // Friendly indicator if Render free tier is cold starting
-  const coldStartTimer = setTimeout(() => {
-    if (typingStatusEl) {
-      typingStatusEl.textContent = 'Connecting to server (waking up if sleeping)...';
-    }
-  }, 5000);
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 75000); // 75s timeout for Render free tier
-
-    const res = await fetch(BACKEND_API_URL, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        message: text,
-        history: history.slice(0, -1),
-        session_id: sessionId
-      }),
-      signal: controller.signal
+  if (dropZone && fileInput) {
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, preventDefaults, false);
     });
-    clearTimeout(timeoutId);
-    clearTimeout(coldStartTimer);
 
-    const rawText = await res.text();
-    let data;
-    try {
-      data = JSON.parse(rawText);
-    } catch (parseErr) {
-      console.error('FastAPI backend did not return valid JSON. Raw response:', rawText);
-      throw new Error(`Server returned non-JSON response (HTTP ${res.status}).`);
+    function preventDefaults(e) {
+      e.preventDefault();
+      e.stopPropagation();
     }
 
-    typingEl.remove();
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, () => {
+        dropZone.style.backgroundColor = '#d0e2ff';
+      }, false);
+    });
 
-    if (data.reply) {
-      appendMessage(data.reply, 'bot');
-      history.push({ role: 'bot', text: data.reply });
-    } else {
-      appendMessage("Received unexpected response structure from server.", 'bot', true);
-    }
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, () => {
+        dropZone.style.backgroundColor = '#f8f9fa';
+      }, false);
+    });
 
-  } catch (err) {
-    clearTimeout(coldStartTimer);
-    console.error('Chat request failed:', err);
-    typingEl.remove();
-
-    let errMsg = 'Connection error: Could not reach the backend server.';
-    if (err && err.name === 'AbortError') {
-      errMsg = 'The server took longer than 75s to respond. If hosted on Render Free Tier, instances spin down after inactivity and may take 30-50s to wake up. Please try sending your message again.';
-    } else if (err && err.message) {
-      errMsg = `Error: ${err.message}\n(Backend: ${BACKEND_API_URL})`;
-    }
-
-    appendMessage(errMsg, 'bot', true);
-  } finally {
-    sendBtn.disabled = false;
-    userInput.focus();
+    dropZone.addEventListener('drop', (e) => {
+      var dt = e.dataTransfer;
+      var files = dt.files;
+      if (files && files.length > 0) {
+        fileInput.files = files;
+        handleFileSelect(fileInput);
+      }
+    }, false);
   }
-}
+});
 </script>
 
-</body>
-</html>
+<?php include("includes/footer.php"); ?>
